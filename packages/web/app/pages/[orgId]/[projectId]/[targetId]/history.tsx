@@ -149,37 +149,40 @@ const ListPage = ({
 
   return (
     <>
-      {versions?.nodes.map(version => (
-        <NextLink
-          key={version.id}
-          href={`/${router.organizationId}/${router.projectId}/${router.targetId}/history/${version.id}`}
-          passHref
-          scroll={false} // disable the scroll to top on page
-        >
-          <a
-            className={clsx(
-              'flex flex-col rounded-md p-2.5 hover:bg-gray-800/40',
-              versionId === version.id && 'bg-gray-800/40'
-            )}
+      {versions?.nodes.map(version => {
+        const commit = version.commit;
+        return (
+          <NextLink
+            key={version.id}
+            href={`/${router.organizationId}/${router.projectId}/${router.targetId}/history/${version.id}`}
+            passHref
+            scroll={false} // disable the scroll to top on page
           >
-            <h3 className="truncate font-bold">{version.commit.commit}</h3>
-            <div className="truncate text-xs font-medium text-gray-500">
-              <span className="overflow-hidden truncate">{version.commit.author}</span>
-            </div>
-            <div className="mt-2.5 mb-1.5 flex align-middle text-xs font-medium text-[#c4c4c4]">
-              <div className={clsx('w-1/2 ', !version.valid && 'text-red-500')}>
-                <Badge color={version.valid ? 'green' : 'red'} /> Published <TimeAgo date={version.date} />
-              </div>
-
-              {version.commit.service && (
-                <div className="ml-auto mr-0 w-1/2 overflow-hidden text-ellipsis whitespace-nowrap text-right font-bold">
-                  {version.commit.service}
-                </div>
+            <a
+              className={clsx(
+                'flex flex-col rounded-md p-2.5 hover:bg-gray-800/40',
+                versionId === version.id && 'bg-gray-800/40'
               )}
-            </div>
-          </a>
-        </NextLink>
-      ))}
+            >
+              <h3 className="truncate font-bold">{'commit' in commit ? commit.commit : 'unknown'}</h3>
+              <div className="truncate text-xs font-medium text-gray-500">
+                <span className="overflow-hidden truncate">{'author' in commit ? commit.author : 'unknown'}</span>
+              </div>
+              <div className="mt-2.5 mb-1.5 flex align-middle text-xs font-medium text-[#c4c4c4]">
+                <div className={clsx('w-1/2 ', !version.isComposable && 'text-red-500')}>
+                  <Badge color={version.isComposable ? 'green' : 'red'} /> Published <TimeAgo date={version.date} />
+                </div>
+
+                {'serviceName' in commit && commit.serviceName && (
+                  <div className="ml-auto mr-0 w-1/2 overflow-hidden text-ellipsis whitespace-nowrap text-right font-bold">
+                    {commit.serviceName}
+                  </div>
+                )}
+              </div>
+            </a>
+          </NextLink>
+        );
+      })}
       {isLastPage && hasMore && (
         <Button
           variant="link"

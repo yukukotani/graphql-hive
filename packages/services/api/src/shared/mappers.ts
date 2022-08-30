@@ -11,14 +11,21 @@ import type {
   GraphQLSchema,
   GraphQLArgument,
 } from 'graphql';
-import type { SchemaChange, SchemaError, OperationStats, ClientStats } from '../__generated__/types';
 import type {
+  SchemaChange,
+  SchemaError,
+  OperationStats,
+  ClientStats,
+  SchemaPublishPayload as OriginalSchemaPublishPayload,
+} from '../__generated__/types';
+import type {
+  Schema,
   Member,
   Organization,
   PersistedOperation,
   Project,
   SchemaObject,
-  SchemaVersion as SchemaVersionEntity,
+  RegistryVersion as RegistryVersionEntity,
   Target,
   Token,
   User,
@@ -26,7 +33,21 @@ import type {
   DateRange,
 } from './entities';
 
-export interface SchemaVersion extends SchemaVersionEntity {
+type RequiredProperties<T, P extends keyof T> = Omit<T, P> & Required<Pick<T, P>>;
+
+export type {
+  Schema,
+  SingleSchema,
+  CompositeSchema,
+  RegistryNotApplicableAction,
+  RegistryAddAction,
+  RegistryDeleteAction,
+  RegistryModifyAction,
+} from './entities';
+
+export type SchemaPublishPayload = RequiredProperties<OriginalSchemaPublishPayload, '__typename'>;
+
+export interface RegistryVersion extends RegistryVersionEntity {
   project: string;
   target: string;
   organization: string;
@@ -94,23 +115,18 @@ export type SchemaConnection = readonly Schema[];
 export type TokenConnection = readonly Token[];
 export type OperationStatsConnection = ReadonlyArray<Omit<OperationStats, 'duration'> & { duration: DurationStats }>;
 export type ClientStatsConnection = readonly ClientStats[];
-export type SchemaVersionConnection = {
-  nodes: readonly SchemaVersion[];
+export type RegistryVersionConnection = {
+  nodes: readonly RegistryVersion[];
   hasMore: boolean;
 };
-export type SchemaComparePayload =
-  | SchemaCompareResult
+export type RegistryVersionComparePayload =
+  | RegistryVersionCompareResult
   | {
       message: string;
     };
-export type SchemaCompareResult = readonly [SchemaObject, SchemaObject] | readonly [undefined | null, SchemaObject];
-export interface Schema {
-  id: string;
-  author: string;
-  source: string;
-  date: string;
-  service?: string | null;
-}
+export type RegistryVersionCompareResult =
+  | readonly [SchemaObject, SchemaObject]
+  | readonly [undefined | null, SchemaObject];
 
 export interface OperationsStats {
   organization: string;

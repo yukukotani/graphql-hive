@@ -31,7 +31,7 @@ import { TargetManager } from '../target/providers/target-manager';
 import { AuthManager } from '../auth/providers/auth-manager';
 import { parseResolveInfo } from 'graphql-parse-resolve-info';
 import { z } from 'zod';
-import { SchemaHelper } from './providers/schema-helper';
+import { SchemaHelper, ensureSchemasWithSDL, onlySchemasWithSDL } from './providers/schema-helper';
 import type { WithSchemaCoordinatesUsage, WithGraphQLParentInfo } from '../../shared/mappers';
 import { createPeriod, parseDateRangeInput } from '../../shared/helpers';
 import { OperationsManager } from '../operations/providers/operations-manager';
@@ -114,7 +114,35 @@ export const resolvers: SchemaModule.Resolvers = {
         isSchemaPublishMissingUrlErrorSelected,
       });
     },
-    async updateSchemaVersionStatus(_, { input }, { injector }) {
+    async schemaDelete(_, { input }, { injector }) {
+      const [organization, project, target] = await Promise.all([
+        injector.get(OrganizationManager).getOrganizationIdByToken(),
+        injector.get(ProjectManager).getProjectIdByToken(),
+        injector.get(TargetManager).getTargetIdByToken(),
+      ]);
+
+      const result = await injector.get(SchemaPublisher).delete({
+        serviceName: input.serviceName,
+        force: input.force,
+        organization,
+        project,
+        target,
+      });
+
+      if (result.ok) {
+        return {
+          ok: {
+            ...result.ok,
+            date: result.ok.date as any,
+          },
+        };
+      }
+
+      return {
+        errors: result.errors,
+      };
+    },
+    async updateRegistryVersionStatus(_, { input }, { injector }) {
       const translator = injector.get(IdTranslator);
       const [organization, project, target] = await Promise.all([
         translator.translateOrganizationId(input),
@@ -188,7 +216,7 @@ export const resolvers: SchemaModule.Resolvers = {
         translator.translateTargetId(input),
       ]);
 
-      const { type: projectType } = await injector.get(ProjectManager).getProject({
+      const { type: projectType, isUsingLegacyRegistryModel } = await injector.get(ProjectManager).getProject({
         organization,
         project,
       });
@@ -201,6 +229,7 @@ export const resolvers: SchemaModule.Resolvers = {
         name: input.name,
         newName: input.newName,
         projectType,
+        isUsingLegacyRegistryModel,
       });
 
       return {
@@ -267,60 +296,7 @@ export const resolvers: SchemaModule.Resolvers = {
     },
   },
   Query: {
-    async schemaCompare(_, { selector }, { injector }) {
-      const translator = injector.get(IdTranslator);
-      const schemaManager = injector.get(SchemaManager);
-      const projectManager = injector.get(ProjectManager);
-      const helper = injector.get(SchemaHelper);
-
-      const [organizationId, projectId, targetId] = await Promise.all([
-        translator.translateOrganizationId(selector),
-        translator.translateProjectId(selector),
-        translator.translateTargetId(selector),
-      ]);
-
-      const project = await projectManager.getProject({
-        organization: organizationId,
-        project: projectId,
-      });
-      const orchestrator = schemaManager.matchOrchestrator(project.type);
-
-      // TODO: collect stats from a period between these two versions
-      const [schemasBefore, schemasAfter] = await Promise.all([
-        injector.get(SchemaManager).getSchemasOfVersion({
-          organization: organizationId,
-          project: projectId,
-          target: targetId,
-          version: selector.before,
-        }),
-        injector.get(SchemaManager).getSchemasOfVersion({
-          organization: organizationId,
-          project: projectId,
-          target: targetId,
-          version: selector.after,
-        }),
-      ]);
-
-      return Promise.all([
-        orchestrator.build(
-          schemasBefore.map(s => helper.createSchemaObject(s)),
-          project.externalComposition
-        ),
-        orchestrator.build(
-          schemasAfter.map(s => helper.createSchemaObject(s)),
-          project.externalComposition
-        ),
-      ]).catch(reason => {
-        if (reason instanceof SchemaBuildError) {
-          return Promise.resolve({
-            message: reason.message,
-          });
-        }
-
-        return Promise.reject(reason);
-      });
-    },
-    async schemaCompareToPrevious(_, { selector }, { injector }) {
+    async registryVersionCompareToPrevious(_, { selector }, { injector }) {
       const translator = injector.get(IdTranslator);
       const schemaManager = injector.get(SchemaManager);
       const projectManager = injector.get(ProjectManager);
@@ -357,13 +333,13 @@ export const resolvers: SchemaModule.Resolvers = {
       return Promise.all([
         schemasBefore.length
           ? orchestrator.build(
-              schemasBefore.map(s => helper.createSchemaObject(s)),
-              project.externalComposition
+              onlySchemasWithSDL(schemasBefore).map(s => helper.createSchemaObject(s)),
+              project
             )
           : null,
         orchestrator.build(
-          schemasAfter.map(s => helper.createSchemaObject(s)),
-          project.externalComposition
+          onlySchemasWithSDL(schemasAfter).map(s => helper.createSchemaObject(s)),
+          project
         ),
       ]).catch(reason => {
         if (reason instanceof SchemaBuildError) {
@@ -375,7 +351,7 @@ export const resolvers: SchemaModule.Resolvers = {
         return Promise.reject(reason);
       });
     },
-    async schemaVersions(_, { selector, after, limit }, { injector }) {
+    async registryVersions(_, { selector, after, limit }, { injector }) {
       const translator = injector.get(IdTranslator);
       const [organization, project, target] = await Promise.all([
         translator.translateOrganizationId(selector),
@@ -391,7 +367,7 @@ export const resolvers: SchemaModule.Resolvers = {
         limit,
       });
     },
-    async schemaVersion(_, { selector }, { injector }) {
+    async registryVersion(_, { selector }, { injector }) {
       const translator = injector.get(IdTranslator);
       const [organization, project, target] = await Promise.all([
         translator.translateOrganizationId(selector),
@@ -415,7 +391,7 @@ export const resolvers: SchemaModule.Resolvers = {
         target: target.id,
       });
     },
-    async latestValidVersion(_, __, { injector }) {
+    async latestComposableVersion(_, __, { injector }) {
       const target = await injector.get(TargetManager).getTargetFromToken();
 
       return injector.get(SchemaManager).getLatestValidVersion({
@@ -426,7 +402,7 @@ export const resolvers: SchemaModule.Resolvers = {
     },
   },
   Target: {
-    latestSchemaVersion(target, _, { injector }) {
+    latestRegistryVersion(target, _, { injector }) {
       return injector.get(SchemaManager).getMaybeLatestVersion({
         target: target.id,
         project: target.projectId,
@@ -448,8 +424,8 @@ export const resolvers: SchemaModule.Resolvers = {
       });
     },
   },
-  SchemaVersion: {
-    commit(version, _, { injector }) {
+  RegistryVersion: {
+    action(version, _, { injector }) {
       return injector.get(SchemaManager).getCommit({
         commit: version.commit,
         organization: version.organization,
@@ -479,16 +455,18 @@ export const resolvers: SchemaModule.Resolvers = {
       const orchestrator = schemaManager.matchOrchestrator(project.type);
       const helper = injector.get(SchemaHelper);
 
-      const schemas = await schemaManager.getCommits({
-        version: version.id,
-        organization: version.organization,
-        project: version.project,
-        target: version.target,
-      });
+      const schemas = ensureSchemasWithSDL(
+        await schemaManager.getCommits({
+          version: version.id,
+          organization: version.organization,
+          project: version.project,
+          target: version.target,
+        })
+      );
 
       return orchestrator.supergraph(
         schemas.map(s => helper.createSchemaObject(s)),
-        project.externalComposition
+        project
       );
     },
     async sdl(version, _, { injector }) {
@@ -501,17 +479,19 @@ export const resolvers: SchemaModule.Resolvers = {
       const orchestrator = schemaManager.matchOrchestrator(project.type);
       const helper = injector.get(SchemaHelper);
 
-      const schemas = await schemaManager.getCommits({
-        version: version.id,
-        organization: version.organization,
-        project: version.project,
-        target: version.target,
-      });
+      const schemas = ensureSchemasWithSDL(
+        await schemaManager.getCommits({
+          version: version.id,
+          organization: version.organization,
+          project: version.project,
+          target: version.target,
+        })
+      );
 
       return (
         await orchestrator.build(
           schemas.map(s => helper.createSchemaObject(s)),
-          project.externalComposition
+          project
         )
       ).raw;
     },
@@ -528,16 +508,18 @@ export const resolvers: SchemaModule.Resolvers = {
       const orchestrator = schemaManager.matchOrchestrator(project.type);
       const helper = injector.get(SchemaHelper);
 
-      const schemas = await schemaManager.getCommits({
-        version: version.id,
-        organization: version.organization,
-        project: version.project,
-        target: version.target,
-      });
+      const schemas = ensureSchemasWithSDL(
+        await schemaManager.getCommits({
+          version: version.id,
+          organization: version.organization,
+          project: version.project,
+          target: version.target,
+        })
+      );
 
       const schema = await orchestrator.build(
         schemas.map(s => helper.createSchemaObject(s)),
-        project.externalComposition
+        project
       );
 
       return {
@@ -553,12 +535,44 @@ export const resolvers: SchemaModule.Resolvers = {
       };
     },
   },
-  SchemaCompareError: {
+  RegistryAddAction: {
+    __isTypeOf(action) {
+      return action.action === 'ADD';
+    },
+  },
+  RegistryDeleteAction: {
+    __isTypeOf(action) {
+      return action.action === 'DELETE';
+    },
+  },
+  RegistryModifyAction: {
+    __isTypeOf(action) {
+      return action.action === 'MODIFY';
+    },
+  },
+  RegistryNotApplicableAction: {
+    __isTypeOf(action) {
+      return action.action === 'N/A';
+    },
+  },
+  SingleSchema: {
+    __isTypeOf(schema) {
+      return schema.action == 'N/A';
+    },
+  },
+  CompositeSchema: {
+    __isTypeOf(schema) {
+      return schema.action === 'ADD' || schema.action === 'MODIFY';
+    },
+    serviceName: schema => schema.service_name,
+    serviceUrl: schema => schema.service_url,
+  },
+  RegistryVersionCompareError: {
     __isTypeOf(error) {
       return 'message' in error;
     },
   },
-  SchemaCompareResult: {
+  RegistryVersionCompareResult: {
     __isTypeOf(obj) {
       return Array.isArray(obj);
     },
@@ -580,7 +594,7 @@ export const resolvers: SchemaModule.Resolvers = {
     },
   },
   SchemaConnection: createConnection(),
-  SchemaVersionConnection: {
+  RegistryVersionConnection: {
     pageInfo(info) {
       return {
         hasMore: info.hasMore,

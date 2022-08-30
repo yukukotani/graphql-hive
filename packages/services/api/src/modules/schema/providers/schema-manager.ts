@@ -1,6 +1,6 @@
 import { Injectable, Scope } from 'graphql-modules';
 import lodash from 'lodash';
-import { SchemaVersion } from '../../../shared/mappers';
+import { RegistryVersion } from '../../../shared/mappers';
 import { Orchestrator, ProjectType } from '../../../shared/entities';
 import { atomic, stringifySelector } from '../../../shared/helpers';
 import { HiveError } from '../../../shared/errors';
@@ -15,6 +15,8 @@ import { TargetAccessScope } from '../../auth/providers/target-access';
 import { ProjectAccessScope } from '../../auth/providers/project-access';
 import { CryptoProvider } from '../../shared/providers/crypto';
 import { z } from 'zod';
+import { ensureCompositeSchemas } from './schema-helper';
+import { ProjectManager } from '../../project/providers/project-manager';
 
 const ENABLE_EXTERNAL_COMPOSITION_SCHEMA = z.object({
   endpoint: z.string().url().nonempty(),
@@ -44,6 +46,7 @@ export class SchemaManager {
   constructor(
     logger: Logger,
     private authManager: AuthManager,
+    private projectManager: ProjectManager,
     private storage: Storage,
     private singleOrchestrator: SingleOrchestrator,
     private stitchingOrchestrator: StitchingOrchestrator,
@@ -106,7 +109,7 @@ export class SchemaManager {
       scope: TargetAccessScope.REGISTRY_READ,
     });
 
-    const version = await this.storage.getMaybeLatestValidVersion(selector);
+    const version = await this.storage.getMaybeLatestComposableVersion(selector);
 
     if (!version) {
       return null;
@@ -127,7 +130,7 @@ export class SchemaManager {
       scope: TargetAccessScope.REGISTRY_READ,
     });
     return {
-      ...(await this.storage.getLatestValidVersion(selector)),
+      ...(await this.storage.getLatestComposableVersion(selector)),
       project: selector.project,
       target: selector.target,
       organization: selector.organization,
@@ -204,7 +207,9 @@ export class SchemaManager {
     };
   }
 
-  async updateSchemaVersionStatus(input: TargetSelector & { version: string; valid: boolean }): Promise<SchemaVersion> {
+  async updateSchemaVersionStatus(
+    input: TargetSelector & { version: string; valid: boolean }
+  ): Promise<RegistryVersion> {
     this.logger.debug('Updating schema version status (input=%o)', input);
     await this.authManager.ensureTargetAccess({
       ...input,
@@ -261,16 +266,18 @@ export class SchemaManager {
       commit: string;
       schema: string;
       author: string;
-      valid: boolean;
+      isComposable: boolean;
       service?: string | null;
       commits: string[];
       url?: string | null;
       base_schema: string | null;
       metadata: string | null;
+      action: 'ADD' | 'MODIFY' | 'N/A';
     } & TargetSelector
   ) {
     this.logger.info('Creating a new version (input=%o)', lodash.omit(input, ['schema']));
-    const { valid, project, organization, target, commit, schema, author, commits, url, metadata } = input;
+    const { isComposable, project, organization, target, commit, schema, author, commits, url, metadata, action } =
+      input;
     let service = input.service;
 
     await this.authManager.ensureTargetAccess({
@@ -280,33 +287,51 @@ export class SchemaManager {
       scope: TargetAccessScope.REGISTRY_WRITE,
     });
 
-    if (service) {
+    const { isUsingLegacyRegistryModel } = await this.projectManager.getProject({
+      organization,
+      project,
+    });
+
+    // In case of the legacy registry model, we need to ensure that the service name is lowercased
+    if (isUsingLegacyRegistryModel && service) {
       service = service.toLowerCase();
     }
 
-    // insert new schema
-    const insertedSchema = await this.insertSchema({
+    return this.storage.createVersion({
+      isComposable,
       organization,
       project,
       target,
-      schema,
-      service,
-      commit,
-      author,
-      url,
-      metadata,
+      schema: {
+        sdl: schema,
+        serviceName: service,
+        commit,
+        author,
+        serviceUrl: url,
+        metadata,
+        base_schema: input.base_schema,
+      },
+    });
+  }
+
+  async deleteSchema(
+    input: {
+      serviceName: string;
+      isComposable: boolean;
+      baseSchema: string | null;
+    } & TargetSelector
+  ) {
+    await this.authManager.ensureTargetAccess({
+      target: input.target,
+      project: input.project,
+      organization: input.organization,
+      scope: TargetAccessScope.REGISTRY_WRITE,
     });
 
-    // finally create a version
-    return this.storage.createVersion({
-      valid,
-      organization,
-      project,
-      target,
-      commit: insertedSchema.id,
-      commits: commits.concat(insertedSchema.id),
-      url,
-      base_schema: input.base_schema,
+    return this.storage.deleteSchema({
+      ...input,
+      author: 'unknown',
+      commit: 'unknown',
     });
   }
 
@@ -330,23 +355,24 @@ export class SchemaManager {
     }
   }
 
-  private async insertSchema(
-    input: {
-      schema: string;
-      commit: string;
-      author: string;
-      service?: string | null;
-      url?: string | null;
-      metadata: string | null;
-    } & TargetSelector
-  ) {
-    this.logger.info('Inserting schema (input=%o)', lodash.omit(input, ['schema']));
-    await this.authManager.ensureTargetAccess({
-      ...input,
-      scope: TargetAccessScope.REGISTRY_WRITE,
-    });
-    return this.storage.insertSchema(input);
-  }
+  // private async insertSchema(
+  //   input: {
+  //     schema: string;
+  //     commit: string;
+  //     author: string;
+  //     service?: string | null;
+  //     url?: string | null;
+  //     metadata: string | null;
+  //     action: 'ADD' | 'MODIFY' | 'N/A';
+  //   } & TargetSelector
+  // ) {
+  //   this.logger.info('Inserting schema (input=%o)', lodash.omit(input, ['schema']));
+  //   await this.authManager.ensureTargetAccess({
+  //     ...input,
+  //     scope: TargetAccessScope.REGISTRY_WRITE,
+  //   });
+  //   return this.storage.insertSchema(input);
+  // }
 
   async getBaseSchema(selector: TargetSelector) {
     this.logger.debug('Fetching base schema (selector=%o)', selector);
@@ -371,6 +397,7 @@ export class SchemaManager {
       name: string;
       newName: string;
       projectType: ProjectType;
+      isUsingLegacyRegistryModel: boolean;
     }
   ) {
     this.logger.debug('Updating service name (input=%o)', input);
@@ -379,18 +406,24 @@ export class SchemaManager {
       scope: TargetAccessScope.REGISTRY_WRITE,
     });
 
+    if (!input.isUsingLegacyRegistryModel) {
+      throw new HiveError('This operation is available only for projects using the legacy registry model');
+    }
+
     if (input.projectType !== ProjectType.FEDERATION && input.projectType !== ProjectType.STITCHING) {
       throw new HiveError(`Project type "${input.projectType}" doesn't support service name updates`);
     }
 
-    const schemas = await this.storage.getSchemasOfVersion({
-      version: input.version,
-      target: input.target,
-      project: input.project,
-      organization: input.organization,
-    });
+    const schemas = ensureCompositeSchemas(
+      await this.storage.getSchemasOfVersion({
+        version: input.version,
+        target: input.target,
+        project: input.project,
+        organization: input.organization,
+      })
+    );
 
-    const schema = schemas.find(s => s.service === input.name);
+    const schema = schemas.find(s => s.service_name === input.name);
 
     if (!schema) {
       throw new HiveError(`Couldn't find service "${input.name}"`);
@@ -400,7 +433,7 @@ export class SchemaManager {
       throw new HiveError(`Service name can't be empty`);
     }
 
-    const duplicatedSchema = schemas.find(s => s.service === input.newName);
+    const duplicatedSchema = schemas.find(s => s.service_name === input.newName);
 
     if (duplicatedSchema) {
       throw new HiveError(`Service "${input.newName}" already exists`);

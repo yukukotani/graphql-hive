@@ -29,8 +29,12 @@ const TargetCard = ({ target }: { target: Exclude<TargetQuery['target'], null | 
   });
   const versions = versionsQuery.data?.schemaVersions;
   const lastVersion = versions?.nodes[0];
-  const author = lastVersion?.commit.author;
-  const isValid = lastVersion?.valid;
+  const author = lastVersion
+    ? lastVersion?.commit && 'author' in lastVersion?.commit
+      ? lastVersion.commit.author
+      : 'unknown'
+    : null;
+  const isValid = lastVersion?.isComposable;
   const href = `/${router.organizationId}/${router.projectId}/${target.cleanId}`;
 
   return (
@@ -73,7 +77,7 @@ const TargetCard = ({ target }: { target: Exclude<TargetQuery['target'], null | 
               {lastVersion ? (
                 <>
                   <Badge color={isValid ? 'green' : 'red'} />
-                  <span>{lastVersion.commit.commit.substring(0, 7)}</span>
+                  <span>{'commit' in lastVersion.commit ? lastVersion.commit.commit.substring(0, 7) : 'unknown'}</span>
                   <span>
                     - Published <TimeAgo date={lastVersion.date} />
                   </span>

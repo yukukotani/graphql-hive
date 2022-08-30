@@ -51,13 +51,20 @@ fragment TargetEssentials on Target {
   hasSchema
 }
 
-fragment SchemaFields on Schema {
+fragment SingleSchemaFields on SingleSchema {
   id
   author
-  source
-  service
-  url
   commit
+  sdl
+}
+
+fragment CompositeSchemaFields on CompositeSchema {
+  id
+  author
+  commit
+  sdl
+  serviceName
+  serviceUrl
 }
 
 fragment MemberFields on Member {
@@ -96,15 +103,32 @@ fragment OperationStatsFields on OperationStats {
   }
 }
 
-fragment SchemaVersionFields on SchemaVersion {
+fragment RegistryVersionFields on RegistryVersion {
   id
   date
-  valid
-  commit {
-    id
-    author
-    service
-    commit
+  isComposable
+  action {
+    ... on RegistryAddAction {
+      id
+      author
+      commit
+      serviceName
+    }
+    ... on RegistryModifyAction {
+      id
+      author
+      commit
+      serviceName
+    }
+    ... on RegistryDeleteAction {
+      id
+      deletedServiceName: serviceName
+    }
+    ... on RegistryNotApplicableAction {
+      id
+      author
+      commit
+    }
   }
   baseSchema
 }
@@ -115,7 +139,7 @@ fragment SchemaChangeFields on SchemaChange {
   criticality
 }
 
-fragment SchemaCompareResultFields on SchemaCompareResult {
+fragment RegistryVersionCompareResultFields on RegistryVersionCompareResult {
   initial
   changes {
     total
@@ -129,7 +153,7 @@ fragment SchemaCompareResultFields on SchemaCompareResult {
   }
 }
 
-fragment SchemaCompareErrorFields on SchemaCompareError {
+fragment RegistryVersionCompareErrorFields on RegistryVersionCompareError {
   message
 }
 

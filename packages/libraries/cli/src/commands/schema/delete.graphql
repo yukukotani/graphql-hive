@@ -1,0 +1,13 @@
+mutation schemaDelete($input: SchemaDeleteInput!) {
+  schemaDelete(input: $input) {
+    ok {
+      __typename
+    }
+    errors {
+      nodes {
+        message
+      }
+      total
+    }
+  }
+}

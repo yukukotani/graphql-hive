@@ -11,6 +11,7 @@ export type alert_channel_type = "SLACK" | "WEBHOOK";
 export type alert_type = "SCHEMA_CHANGE_NOTIFICATIONS";
 export type operation_kind = "mutation" | "query" | "subscription";
 export type organization_type = "PERSONAL" | "REGULAR";
+export type registry_action = "ADD" | "DELETE" | "MODIFY" | "N/A";
 export type user_role = "ADMIN" | "MEMBER";
 
 export interface activities {
@@ -65,9 +66,9 @@ export interface oidc_integrations {
   client_id: string;
   client_secret: string;
   created_at: Date;
-  oauth_api_url: string;
   id: string;
   linked_organization_id: string;
+  oauth_api_url: string;
   updated_at: Date;
 }
 
@@ -131,10 +132,39 @@ export interface projects {
   external_composition_secret: string | null;
   git_repository: string | null;
   id: string;
+  legacy_registry_model: boolean;
   name: string;
   org_id: string;
   type: string;
   validation_url: string | null;
+}
+
+export interface registry_actions {
+  action: registry_action;
+  author: string;
+  commit: string;
+  created_at: Date;
+  id: string;
+  metadata: string | null;
+  project_id: string;
+  sdl: string | null;
+  service_name: string | null;
+  service_url: string | null;
+  target_id: string;
+}
+
+export interface registry_version_action {
+  action_id: string;
+  version_id: string;
+}
+
+export interface registry_versions {
+  action_id: string;
+  base_schema: string | null;
+  created_at: Date;
+  id: string;
+  is_composable: boolean;
+  target_id: string;
 }
 
 export interface target_validation {
@@ -177,8 +207,8 @@ export interface users {
   full_name: string;
   id: string;
   is_admin: boolean | null;
-  supertoken_user_id: string | null;
   oidc_integration_id: string | null;
+  supertoken_user_id: string | null;
 }
 
 export interface version_commit {

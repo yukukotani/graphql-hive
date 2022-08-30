@@ -53,7 +53,7 @@ export default class SchemaPublish extends Command {
 
   static args = [
     {
-      name: 'file',
+      name: 'file' as const,
       required: true,
       description: 'Path to the schema file(s)',
       hidden: false,

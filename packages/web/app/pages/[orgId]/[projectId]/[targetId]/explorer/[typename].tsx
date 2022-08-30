@@ -44,10 +44,10 @@ const SchemaTypeExplorer_Type = gql(/* GraphQL */ `
     target(selector: { organization: $organization, project: $project, target: $target }) {
       __typename
       id
-      latestSchemaVersion {
+      latestRegistryVersion {
         __typename
         id
-        valid
+        isComposable
         explorer(usage: { period: $period }) {
           type(name: $typename) {
             __typename

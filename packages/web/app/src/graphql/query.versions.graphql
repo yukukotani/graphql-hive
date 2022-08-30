@@ -1,7 +1,7 @@
-query versions($selector: SchemaVersionsInput!, $limit: Int!, $after: ID) {
-  schemaVersions(selector: $selector, after: $after, limit: $limit) {
+query versions($selector: RegistryVersionsInput!, $limit: Int!, $after: ID) {
+  registryVersions(selector: $selector, after: $after, limit: $limit) {
     nodes {
-      ...SchemaVersionFields
+      ...RegistryVersionFields
     }
     pageInfo {
       hasMore

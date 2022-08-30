@@ -5,6 +5,7 @@ import type {
   CreateOrganizationInput,
   UpdateOrganizationNameInput,
   SchemaPublishInput,
+  SchemaDeleteInput,
   CreateProjectInput,
   UpdateProjectNameInput,
   CreateTokenInput,
@@ -15,10 +16,10 @@ import type {
   UpdateTargetValidationSettingsInput,
   OperationsStatsSelectorInput,
   UpdateBaseSchemaInput,
-  SchemaVersionsInput,
+  RegistryVersionsInput,
   CreateTargetInput,
   UpdateTargetNameInput,
-  SchemaVersionUpdateInput,
+  RegistryVersionUpdateInput,
   TargetSelectorInput,
   OrganizationSelectorInput,
   SchemaSyncCdnInput,
@@ -420,6 +421,31 @@ export function publishSchema(input: SchemaPublishInput, token: string, authHead
   });
 }
 
+export function deleteSchema(input: SchemaDeleteInput, token: string, authHeader?: 'x-api-token' | 'authorization') {
+  return execute({
+    document: gql(/* GraphQL */ `
+      mutation schemaDelete($input: SchemaDeleteInput!) {
+        schemaDelete(input: $input) {
+          ok {
+            __typename
+          }
+          errors {
+            nodes {
+              message
+            }
+            total
+          }
+        }
+      }
+    `),
+    token,
+    variables: {
+      input,
+    },
+    legacyAuthorizationMode: authHeader === 'x-api-token',
+  });
+}
+
 export function checkSchema(input: SchemaCheckInput, token: string) {
   return execute({
     document: gql(/* GraphQL */ `
@@ -591,9 +617,16 @@ export function fetchLatestSchema(token: string) {
           baseSchema
           schemas {
             nodes {
-              source
-              commit
-              url
+              ... on SingleSchema {
+                commit
+                sdl
+              }
+              ... on CompositeSchema {
+                commit
+                serviceName
+                serviceUrl
+                sdl
+              }
             }
             total
           }
@@ -604,17 +637,25 @@ export function fetchLatestSchema(token: string) {
   });
 }
 
-export function fetchLatestValidSchema(token: string) {
+export function fetchLatestComposableVersion(token: string) {
   return execute({
     document: gql(/* GraphQL */ `
-      query latestValidVersion {
-        latestValidVersion {
+      query latestComposableVersion {
+        latestComposableVersion {
           id
           baseSchema
           schemas {
             nodes {
-              source
-              commit
+              ... on SingleSchema {
+                commit
+                sdl
+              }
+              ... on CompositeSchema {
+                commit
+                serviceName
+                serviceUrl
+                sdl
+              }
             }
             total
           }
@@ -625,24 +666,45 @@ export function fetchLatestValidSchema(token: string) {
   });
 }
 
-export function fetchVersions(selector: SchemaVersionsInput, limit: number, token: string) {
+export function fetchVersions(selector: RegistryVersionsInput, limit: number, token: string) {
   return execute({
     document: gql(/* GraphQL */ `
-      query schemaVersions($limit: Int!, $selector: SchemaVersionsInput!) {
-        schemaVersions(selector: $selector, limit: $limit) {
+      query registryVersions($limit: Int!, $selector: RegistryVersionsInput!) {
+        registryVersions(selector: $selector, limit: $limit) {
           nodes {
             id
-            valid
+            isComposable
             date
-            commit {
-              source
-              commit
+            action {
+              ... on RegistryAddAction {
+                id
+                commit
+              }
+              ... on RegistryModifyAction {
+                id
+                commit
+              }
+              ... on RegistryDeleteAction {
+                id
+              }
+              ... on RegistryNotApplicableAction {
+                id
+                commit
+              }
             }
             baseSchema
             schemas {
               nodes {
-                source
-                commit
+                ... on SingleSchema {
+                  commit
+                  sdl
+                }
+                ... on CompositeSchema {
+                  commit
+                  serviceName
+                  serviceUrl
+                  sdl
+                }
               }
             }
           }
@@ -683,17 +745,30 @@ export function publishPersistedOperations(input: PublishPersistedOperationInput
   });
 }
 
-export function updateSchemaVersionStatus(input: SchemaVersionUpdateInput, token: string) {
+export function updateRegistryVersionStatus(input: RegistryVersionUpdateInput, token: string) {
   return execute({
     document: gql(/* GraphQL */ `
-      mutation updateSchemaVersionStatus($input: SchemaVersionUpdateInput!) {
-        updateSchemaVersionStatus(input: $input) {
+      mutation updateRegistryVersionStatus($input: RegistryVersionUpdateInput!) {
+        updateRegistryVersionStatus(input: $input) {
           id
           date
-          valid
-          commit {
-            id
-            commit
+          isComposable
+          action {
+            ... on RegistryAddAction {
+              id
+              commit
+            }
+            ... on RegistryModifyAction {
+              id
+              commit
+            }
+            ... on RegistryDeleteAction {
+              id
+            }
+            ... on RegistryNotApplicableAction {
+              id
+              commit
+            }
           }
         }
       }

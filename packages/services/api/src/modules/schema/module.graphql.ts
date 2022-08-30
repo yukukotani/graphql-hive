@@ -9,8 +9,12 @@ export default gql`
     """
     Requires API Token
     """
+    schemaDelete(input: SchemaDeleteInput!): SchemaDeleteResult!
+    """
+    Requires API Token
+    """
     schemaCheck(input: SchemaCheckInput!): SchemaCheckPayload!
-    updateSchemaVersionStatus(input: SchemaVersionUpdateInput!): SchemaVersion!
+    updateRegistryVersionStatus(input: RegistryVersionUpdateInput!): RegistryVersion!
     updateBaseSchema(input: UpdateBaseSchemaInput!): UpdateBaseSchemaResult!
     updateSchemaServiceName(input: UpdateSchemaServiceNameInput!): UpdateSchemaServiceNameResult!
     schemaSyncCDN(input: SchemaSyncCDNInput!): SchemaSyncCDNPayload!
@@ -23,18 +27,17 @@ export default gql`
   }
 
   extend type Query {
-    schemaCompare(selector: SchemaCompareInput!): SchemaComparePayload!
-    schemaCompareToPrevious(selector: SchemaCompareToPreviousInput!): SchemaComparePayload!
-    schemaVersions(selector: SchemaVersionsInput!, after: ID, limit: Int!): SchemaVersionConnection!
-    schemaVersion(selector: SchemaVersionInput!): SchemaVersion!
+    registryVersionCompareToPrevious(selector: RegistryVersionCompareToPreviousInput!): RegistryVersionComparePayload!
+    registryVersions(selector: RegistryVersionsInput!, after: ID, limit: Int!): RegistryVersionConnection!
+    registryVersion(selector: RegistryVersionInput!): RegistryVersion!
     """
     Requires API Token
     """
-    latestVersion: SchemaVersion!
+    latestVersion: RegistryVersion!
     """
     Requires API Token
     """
-    latestValidVersion: SchemaVersion!
+    latestComposableVersion: RegistryVersion!
   }
 
   input DisableExternalSchemaCompositionInput {
@@ -113,7 +116,7 @@ export default gql`
   }
 
   extend type Target {
-    latestSchemaVersion: SchemaVersion
+    latestRegistryVersion: RegistryVersion
     baseSchema: String
     hasSchema: Boolean!
   }
@@ -123,14 +126,25 @@ export default gql`
     total: Int!
   }
 
-  type Schema {
+  union Schema = SingleSchema | CompositeSchema
+
+  type SingleSchema {
     id: ID!
     author: String!
-    source: String!
+    sdl: String!
     date: DateTime!
     commit: ID!
-    url: String
-    service: String
+    metadata: String
+  }
+
+  type CompositeSchema {
+    id: ID!
+    author: String!
+    sdl: String!
+    date: DateTime!
+    commit: ID!
+    serviceName: String!
+    serviceUrl: String
     metadata: String
   }
 
@@ -158,6 +172,26 @@ export default gql`
     Talk to GitHub Application and create a check-run
     """
     github: Boolean
+  }
+
+  input SchemaDeleteInput {
+    serviceName: ID!
+    force: Boolean
+  }
+
+  """
+  @oneOf
+  """
+  type SchemaDeleteResult {
+    ok: DeletedSchema
+    errors: SchemaErrorConnection
+  }
+
+  type DeletedSchema {
+    id: ID!
+    author: String!
+    date: DateTime!
+    serviceName: String
   }
 
   union SchemaCheckPayload = SchemaCheckSuccess | SchemaCheckError | GitHubSchemaCheckSuccess | GitHubSchemaCheckError
@@ -190,13 +224,15 @@ export default gql`
   }
 
   type SchemaCheckSuccess {
-    valid: Boolean!
+    isComposable: Boolean!
+    valid: Boolean! @deprecated
     initial: Boolean!
     changes: SchemaChangeConnection
   }
 
   type SchemaCheckError {
-    valid: Boolean!
+    isComposable: Boolean!
+    valid: Boolean! @deprecated
     changes: SchemaChangeConnection
     errors: SchemaErrorConnection!
   }
@@ -219,14 +255,16 @@ export default gql`
 
   type SchemaPublishSuccess {
     initial: Boolean!
-    valid: Boolean!
+    isComposable: Boolean!
+    valid: Boolean! @deprecated
     linkToWebsite: String
     message: String
     changes: SchemaChangeConnection
   }
 
   type SchemaPublishError {
-    valid: Boolean!
+    isComposable: Boolean!
+    valid: Boolean! @deprecated
     linkToWebsite: String
     changes: SchemaChangeConnection
     errors: SchemaErrorConnection!
@@ -250,7 +288,7 @@ export default gql`
     commit: String!
   }
 
-  input SchemaCompareInput {
+  input RegistryVersionCompareInput {
     organization: ID!
     project: ID!
     target: ID!
@@ -258,14 +296,14 @@ export default gql`
     before: ID!
   }
 
-  input SchemaCompareToPreviousInput {
+  input RegistryVersionCompareToPreviousInput {
     organization: ID!
     project: ID!
     target: ID!
     version: ID!
   }
 
-  input SchemaVersionUpdateInput {
+  input RegistryVersionUpdateInput {
     organization: ID!
     project: ID!
     target: ID!
@@ -273,30 +311,30 @@ export default gql`
     valid: Boolean!
   }
 
-  type SchemaCompareResult {
+  type RegistryVersionCompareResult {
     changes: SchemaChangeConnection!
     diff: SchemaDiff!
     initial: Boolean!
   }
 
-  type SchemaCompareError {
+  type RegistryVersionCompareError {
     message: String!
   }
 
-  union SchemaComparePayload = SchemaCompareResult | SchemaCompareError
+  union RegistryVersionComparePayload = RegistryVersionCompareResult | RegistryVersionCompareError
 
   type SchemaDiff {
     after: String!
     before: String!
   }
 
-  input SchemaVersionsInput {
+  input RegistryVersionsInput {
     organization: ID!
     project: ID!
     target: ID!
   }
 
-  input SchemaVersionInput {
+  input RegistryVersionInput {
     organization: ID!
     project: ID!
     target: ID!
@@ -319,11 +357,11 @@ export default gql`
     newName: String!
   }
 
-  type SchemaVersion {
+  type RegistryVersion {
     id: ID!
-    valid: Boolean!
+    isComposable: Boolean!
     date: DateTime!
-    commit: Schema!
+    action: RegistryAction!
     baseSchema: String
     schemas: SchemaConnection!
     supergraph: String
@@ -334,8 +372,41 @@ export default gql`
     explorer(usage: SchemaExplorerUsageInput): SchemaExplorer!
   }
 
-  type SchemaVersionConnection {
-    nodes: [SchemaVersion!]!
+  union RegistryAction = RegistryAddAction | RegistryModifyAction | RegistryDeleteAction | RegistryNotApplicableAction
+
+  type RegistryAddAction {
+    id: ID!
+    date: DateTime!
+    serviceName: String
+    serviceUrl: String
+    commit: String!
+    author: String!
+  }
+
+  type RegistryModifyAction {
+    id: ID!
+    date: DateTime!
+    serviceName: String
+    serviceUrl: String
+    commit: String!
+    author: String!
+  }
+
+  type RegistryDeleteAction {
+    id: ID!
+    date: DateTime!
+    serviceName: String!
+  }
+
+  type RegistryNotApplicableAction {
+    id: ID!
+    date: DateTime!
+    author: String!
+    commit: String!
+  }
+
+  type RegistryVersionConnection {
+    nodes: [RegistryVersion!]!
     pageInfo: PageInfo!
   }
 

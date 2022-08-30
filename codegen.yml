@@ -35,11 +35,18 @@ generates:
         ClientStatsConnection: ../shared/mappers#ClientStatsConnection as ClientStatsConnectionMapper
         OperationsStats: ../shared/mappers#OperationsStats as OperationsStatsMapper
         DurationStats: ../shared/mappers#DurationStats as DurationStatsMapper
-        SchemaComparePayload: ../shared/mappers#SchemaComparePayload as SchemaComparePayloadMapper
-        SchemaCompareResult: ../shared/mappers#SchemaCompareResult as SchemaCompareResultMapper
-        SchemaVersionConnection: ../shared/mappers#SchemaVersionConnection as SchemaVersionConnectionMapper
-        SchemaVersion: ../shared/mappers#SchemaVersion as SchemaVersionMapper
+        SchemaPublishPayload: ../shared/mappers#SchemaPublishPayload as SchemaPublishPayloadMapper
+        RegistryVersionComparePayload: ../shared/mappers#RegistryVersionComparePayload as RegistryVersionComparePayloadMapper
+        RegistryVersionCompareResult: ../shared/mappers#RegistryVersionCompareResult as RegistryVersionCompareResultMapper
+        RegistryVersionConnection: ../shared/mappers#RegistryVersionConnection as RegistryVersionConnectionMapper
+        RegistryVersion: ../shared/mappers#RegistryVersion as RegistryVersionMapper
+        RegistryNotApplicableAction: ../shared/mappers#RegistryNotApplicableAction as RegistryNotApplicableActionMapper
+        RegistryAddAction: ../shared/mappers#RegistryAddAction as RegistryAddActionMapper
+        RegistryDeleteAction: ../shared/mappers#RegistryDeleteAction as RegistryDeleteActionMapper
+        RegistryModifyAction: ../shared/mappers#RegistryModifyAction as RegistryModifyActionMapper
         Schema: ../shared/mappers#Schema as SchemaMapper
+        SingleSchema: ../shared/mappers#SingleSchema as SingleSchemaMapper
+        CompositeSchema: ../shared/mappers#CompositeSchema as CompositeSchemaMapper
         PersistedOperationConnection: ../shared/mappers#PersistedOperationConnection as PersistedOperationMapper
         Organization: ../shared/entities#Organization as OrganizationMapper
         Project: ../shared/entities#Project as ProjectMapper

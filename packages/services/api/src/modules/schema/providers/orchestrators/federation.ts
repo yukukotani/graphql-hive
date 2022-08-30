@@ -1,8 +1,9 @@
 import { Injectable, Inject, Scope, CONTEXT } from 'graphql-modules';
-import { parse } from 'graphql';
+import { parse, visit, print } from 'graphql';
 import { Logger } from '../../../shared/providers/logger';
 import { sentry } from '../../../../shared/sentry';
-import { Orchestrator, ProjectType, SchemaObject } from '../../../../shared/entities';
+import { ProjectType } from '../../../../shared/entities';
+import type { Orchestrator, SchemaObject, Project } from '../../../../shared/entities';
 import { SchemaBuildError } from './errors';
 import { SCHEMA_SERVICE_CONFIG } from './tokens';
 import type { SchemaServiceConfig } from './tokens';
@@ -10,11 +11,54 @@ import { createTRPCClient } from '@trpc/client';
 import { fetch } from '@whatwg-node/fetch';
 import type { SchemaBuilderApi } from '@hive/schema';
 
+const federationV1 = {
+  directives: ['join__graph', 'join__field', 'join__owner', 'join__type', 'core'],
+  enums: ['join__Graph', 'core__Purpose'],
+  scalars: ['join__FieldSet'],
+};
+
+function removeFederationSpec(raw: string) {
+  return visit(parse(raw), {
+    SchemaDefinition(node) {
+      return {
+        ...node,
+        directives: [],
+      };
+    },
+    DirectiveDefinition(node) {
+      if (federationV1.directives.includes(node.name.value)) {
+        return null;
+      }
+
+      return node;
+    },
+    EnumTypeDefinition(node) {
+      if (federationV1.enums.includes(node.name.value)) {
+        return null;
+      }
+
+      return node;
+    },
+    ScalarTypeDefinition(node) {
+      if (federationV1.scalars.includes(node.name.value)) {
+        return null;
+      }
+
+      return node;
+    },
+  });
+}
+
 type ExternalComposition = {
   enabled: boolean;
   endpoint: string;
   encryptedSecret: string;
 } | null;
+
+type Config = {
+  externalComposition: ExternalComposition;
+  isUsingLegacyRegistryModel: boolean;
+};
 
 @Injectable({
   scope: Scope.Operation,
@@ -39,21 +83,45 @@ export class FederationOrchestrator implements Orchestrator {
     });
   }
 
-  ensureConfig(config?: ExternalComposition) {
-    if (config && config.enabled) {
-      if (!config.endpoint) {
+  ensureConfig(project: Project): Config {
+    if (!project) {
+      throw new Error('Missing config for FederationOrchestrator');
+    }
+
+    if (typeof project.isUsingLegacyRegistryModel !== 'boolean') {
+      throw new Error('Missing isUsingLegacyRegistryModel in config for FederationOrchestrator');
+    }
+
+    if (project.externalComposition && project.externalComposition.enabled) {
+      if (!project.externalComposition.endpoint) {
         throw new Error('External composition error: endpoint is missing');
       }
 
-      if (!config.encryptedSecret) {
+      if (!project.externalComposition.encryptedSecret) {
         throw new Error('External composition error: encryptedSecret is missing');
       }
     }
+
+    return {
+      externalComposition: project.externalComposition.enabled
+        ? {
+            enabled: project.externalComposition.enabled,
+            endpoint: project.externalComposition.endpoint,
+            encryptedSecret: project.externalComposition.encryptedSecret,
+          }
+        : null,
+      isUsingLegacyRegistryModel: project.isUsingLegacyRegistryModel,
+    };
+  }
+
+  private externalCompositionFromConfig(config: Config) {
+    return config.externalComposition?.enabled ? config.externalComposition : null;
   }
 
   @sentry('FederationOrchestrator.validate')
-  async validate(schemas: SchemaObject[], external: ExternalComposition) {
+  async validate(schemas: readonly SchemaObject[], project: Project) {
     this.logger.debug('Validating Federated Schemas');
+    const config = this.ensureConfig(project);
 
     const result = await this.schemaService.mutation('validate', {
       type: 'federation',
@@ -61,15 +129,16 @@ export class FederationOrchestrator implements Orchestrator {
         raw: s.raw,
         source: s.source,
       })),
-      external: external?.enabled ? external : null,
+      external: this.externalCompositionFromConfig(config),
     });
 
     return result.errors;
   }
 
   @sentry('FederationOrchestrator.build')
-  async build(schemas: SchemaObject[], external: ExternalComposition): Promise<SchemaObject> {
+  async build(schemas: readonly SchemaObject[], project: Project): Promise<SchemaObject> {
     this.logger.debug('Building Federated Schemas');
+    const config = this.ensureConfig(project);
 
     try {
       const result = await this.schemaService.mutation('build', {
@@ -78,12 +147,22 @@ export class FederationOrchestrator implements Orchestrator {
           raw: s.raw,
           source: s.source,
         })),
-        external: external?.enabled ? external : null,
+        external: this.externalCompositionFromConfig(config),
       });
 
+      if (config.isUsingLegacyRegistryModel) {
+        return {
+          document: parse(result.raw),
+          raw: result.raw,
+          source: result.source,
+        };
+      }
+
+      const parsed = removeFederationSpec(result.raw);
+
       return {
-        document: parse(result.raw),
-        raw: result.raw,
+        document: parsed,
+        raw: print(parsed),
         source: result.source,
       };
     } catch (error) {
@@ -92,8 +171,9 @@ export class FederationOrchestrator implements Orchestrator {
   }
 
   @sentry('FederationOrchestrator.supergraph')
-  async supergraph(schemas: SchemaObject[], external: ExternalComposition): Promise<string | null> {
+  async supergraph(schemas: readonly SchemaObject[], project: Project): Promise<string | null> {
     this.logger.debug('Generating Federated Supergraph');
+    const config = this.ensureConfig(project);
 
     const result = await this.schemaService.mutation('supergraph', {
       type: 'federation',
@@ -102,7 +182,7 @@ export class FederationOrchestrator implements Orchestrator {
         source: s.source,
         url: s.url,
       })),
-      external: external?.enabled ? external : null,
+      external: this.externalCompositionFromConfig(config),
     });
 
     return result.supergraph;

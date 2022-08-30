@@ -14,10 +14,10 @@ const SchemaView_SchemaExplorer = gql(/* GraphQL */ `
     target(selector: { organization: $organization, project: $project, target: $target }) {
       __typename
       id
-      latestSchemaVersion {
+      latestRegistryVersion {
         __typename
         id
-        valid
+        isComposable
         explorer(usage: { period: $period }) {
           query {
             ...GraphQLObjectTypeComponent_TypeFragment

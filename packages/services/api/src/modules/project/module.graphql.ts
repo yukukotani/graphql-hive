@@ -90,6 +90,7 @@ export default gql`
     type: ProjectType!
     buildUrl: String
     validationUrl: String
+    isUsingLegacyRegistryModel: Boolean!
   }
 
   type ProjectConnection {
@@ -103,6 +104,7 @@ export default gql`
     organization: ID!
     buildUrl: String
     validationUrl: String
+    useLegacyRegistryModel: Boolean
   }
 
   input UpdateProjectNameInput {

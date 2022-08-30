@@ -1,11 +1,10 @@
 import { Injectable, Scope } from 'graphql-modules';
 import { paramCase } from 'param-case';
-import type { Project, ProjectType } from '../../../shared/entities';
+import { Project, ProjectType } from '../../../shared/entities';
 import { AuthManager } from '../../auth/providers/auth-manager';
 import { Logger } from '../../shared/providers/logger';
 import { Storage, OrganizationSelector, ProjectSelector } from '../../shared/providers/storage';
 import { NullableAndPartial, share, uuid } from '../../../shared/helpers';
-import { SchemaManager } from '../../schema/providers/schema-manager';
 import type { CustomOrchestratorConfig } from '../../schema/providers/orchestrators/custom';
 import { ActivityManager } from '../../activity/providers/activity-manager';
 import { TokenStorage } from '../../token/providers/token-storage';
@@ -27,7 +26,6 @@ export class ProjectManager {
     logger: Logger,
     private storage: Storage,
     private authManager: AuthManager,
-    private schemaManager: SchemaManager,
     private tokenStorage: TokenStorage,
     private activityManager: ActivityManager
   ) {
@@ -38,6 +36,7 @@ export class ProjectManager {
     input: {
       name: string;
       type: ProjectType;
+      useLegacyRegistryModel?: boolean | null;
     } & OrganizationSelector &
       NullableAndPartial<CustomOrchestratorConfig>
   ): Promise<Project> {
@@ -49,9 +48,15 @@ export class ProjectManager {
       cleanId = paramCase(`${name}-${uuid(4)}`);
     }
 
-    const orchestrator = this.schemaManager.matchOrchestrator(type);
+    if (type === ProjectType.CUSTOM) {
+      if (!buildUrl) {
+        throw new Error('Missing buildUrl');
+      }
 
-    orchestrator.ensureConfig({ buildUrl, validationUrl });
+      if (!validationUrl) {
+        throw new Error('Missing validationUrl');
+      }
+    }
 
     // create project
     const project = await this.storage.createProject({
@@ -61,6 +66,7 @@ export class ProjectManager {
       organization,
       buildUrl,
       validationUrl,
+      isUsingLegacyRegistryModel: input.useLegacyRegistryModel === true,
     });
 
     await Promise.all([

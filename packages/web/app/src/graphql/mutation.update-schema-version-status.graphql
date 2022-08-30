@@ -1,5 +1,5 @@
-mutation updateSchemaVersionStatus($input: SchemaVersionUpdateInput!) {
-  updateSchemaVersionStatus(input: $input) {
-    ...SchemaVersionFields
+mutation updateRegistryVersionStatus($input: RegistryVersionUpdateInput!) {
+  updateRegistryVersionStatus(input: $input) {
+    ...RegistryVersionFields
   }
 }

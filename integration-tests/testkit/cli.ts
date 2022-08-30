@@ -22,3 +22,7 @@ export async function schemaPublish(args: string[]) {
 export async function schemaCheck(args: string[]) {
   return exec(['schema:check', `--registry`, `http://${registryAddress}/graphql`, ...args].join(' '));
 }
+
+export async function schemaDelete(args: string[]) {
+  return exec(['schema:delete', `--registry`, `http://${registryAddress}/graphql`, ...args].join(' '));
+}

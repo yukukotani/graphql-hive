@@ -6,7 +6,7 @@ import { useRouteSelector } from '@/lib/hooks/use-route-selector';
 import { SchemaVersionFieldsFragment, UpdateSchemaVersionStatusDocument } from '@/graphql';
 
 export const MarkAsValid: React.FC<{
-  version: Pick<SchemaVersionFieldsFragment, 'id' | 'valid'>;
+  version: Pick<SchemaVersionFieldsFragment, 'id' | 'isComposable'>;
 }> = ({ version }) => {
   const router = useRouteSelector();
   const [mutation, mutate] = useMutation(UpdateSchemaVersionStatusDocument);
@@ -22,7 +22,7 @@ export const MarkAsValid: React.FC<{
     });
   }, [mutate, version, router]);
 
-  if (version?.valid) {
+  if (version?.isComposable) {
     return null;
   }
 

@@ -3,7 +3,8 @@ import { parse } from 'graphql';
 import { Logger } from '../../../shared/providers/logger';
 import { HiveError } from '../../../../shared/errors';
 import { HttpClient } from '../../../shared/providers/http-client';
-import { Orchestrator, ProjectType, emptySource, SchemaObject } from '../../../../shared/entities';
+import { ProjectType, emptySource } from '../../../../shared/entities';
+import type { Orchestrator, Project, SchemaObject } from '../../../../shared/entities';
 import type { SchemaError } from '../../../../__generated__/types';
 import { SchemaBuildError } from './errors';
 import { sentry } from '../../../../shared/sentry';
@@ -32,23 +33,29 @@ export class CustomOrchestrator implements Orchestrator {
     this.logger = logger.child({ service: 'CustomOrchestrator' });
   }
 
-  ensureConfig(config: CustomOrchestratorConfig) {
-    if (!config) {
+  ensureConfig(project: Project): CustomOrchestratorConfig {
+    if (!project) {
       throw new HiveError('Config is missing');
     }
 
-    if (!config.buildUrl) {
+    if (!project.buildUrl) {
       throw new HiveError('Build endpoint is missing');
     }
 
-    if (!config.validationUrl) {
+    if (!project.validationUrl) {
       throw new HiveError('Validation endpoint is missing');
     }
+
+    return {
+      validationUrl: project.validationUrl!,
+      buildUrl: project.buildUrl!,
+    };
   }
 
   @sentry('CustomOrchestrator.validate')
-  async validate(schemas: SchemaObject[], config: CustomOrchestratorConfig): Promise<SchemaError[]> {
+  async validate(schemas: readonly SchemaObject[], project: Project): Promise<SchemaError[]> {
     this.logger.debug('Validating Custom Schemas');
+    const config = this.ensureConfig(project);
     return this.http.post(config.validationUrl, {
       responseType: 'json',
       headers: {
@@ -63,8 +70,9 @@ export class CustomOrchestrator implements Orchestrator {
   }
 
   @sentry('CustomOrchestrator.build')
-  async build(schemas: SchemaObject[], config: CustomOrchestratorConfig): Promise<SchemaObject> {
+  async build(schemas: readonly SchemaObject[], project: Project): Promise<SchemaObject> {
     this.logger.debug('Building Custom Schema');
+    const config = this.ensureConfig(project);
     try {
       const response = await this.http.post<BuildResponse>(config.buildUrl, {
         responseType: 'json',

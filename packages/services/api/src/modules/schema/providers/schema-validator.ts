@@ -1,14 +1,15 @@
 import { Injectable, Scope } from 'graphql-modules';
-import { Orchestrator, Schema, SchemaObject, Project } from '../../../shared/entities';
-import { buildSchema, findSchema, hashSchema } from '../../../shared/schema';
+import { parse, concatAST } from 'graphql';
+import { Orchestrator, SchemaObject, Project } from '../../../shared/entities';
+import { buildSchema, hashSchema } from '../../../shared/schema';
 import * as Types from '../../../__generated__/types';
 import { Logger } from '../../shared/providers/logger';
 import { sentry } from '../../../shared/sentry';
-import { SchemaHelper } from './schema-helper';
 import { Inspector } from './inspector';
 
 export type ValidationResult = {
-  valid: boolean;
+  isComposable: boolean;
+  hasBreakingChanges: boolean;
   errors: Array<Types.SchemaError>;
   changes: Array<Types.SchemaChange>;
 };
@@ -19,7 +20,7 @@ export type ValidationResult = {
 export class SchemaValidator {
   private logger: Logger;
 
-  constructor(logger: Logger, private inspector: Inspector, private helper: SchemaHelper) {
+  constructor(logger: Logger, private inspector: Inspector) {
     this.logger = logger.child({ service: 'SchemaValidator' });
   }
 
@@ -27,86 +28,89 @@ export class SchemaValidator {
   async validate({
     orchestrator,
     selector,
-    incoming,
-    before,
-    after,
-    baseSchema,
-    experimental_acceptBreakingChanges,
+    compare,
+    isInitial,
+    schemas,
+    acceptBreakingChanges,
     project,
   }: {
     orchestrator: Orchestrator;
-    incoming: Schema;
-    before: readonly Schema[];
-    after: readonly Schema[];
+    isInitial: boolean;
+    compare:
+      | {
+          incoming: SchemaObject;
+          existing: SchemaObject | null;
+        }
+      | false;
+    schemas: {
+      baseSchema: string | null;
+      before: readonly SchemaObject[];
+      after: readonly SchemaObject[];
+    };
     selector: Types.TargetSelector;
-    baseSchema: string | null;
-    experimental_acceptBreakingChanges: boolean;
+    acceptBreakingChanges: boolean;
     project: Project;
   }): Promise<ValidationResult> {
     this.logger.debug('Validating Schema');
-    const existing = findSchema(before, incoming);
-    const afterWithBase = after.map((schema, index) => {
-      let source = '';
-      if (index === 0) {
-        source = (baseSchema || '') + schema.source;
-      } else {
-        source = schema.source;
+    const afterWithBase = schemas.baseSchema
+      ? schemas.after.map((schema, index) => {
+          if (index === 0) {
+            return {
+              ...schema,
+              raw: (schemas.baseSchema || '') + schema.raw,
+              document: concatAST([parse(schemas.baseSchema || ''), schema.document]),
+            };
+          } else {
+            return schema;
+          }
+        })
+      : schemas.after;
+
+    if (compare) {
+      const areIdentical = compare.existing && hashSchema(compare.existing) === hashSchema(compare.incoming);
+
+      if (areIdentical) {
+        // todo: check the is_composable of the existing version and pass it here
+        return {
+          isComposable: true,
+          hasBreakingChanges: false,
+          errors: [],
+          changes: [],
+        };
       }
-      return {
-        id: schema.id,
-        author: schema.author,
-        source: source,
-        date: schema.date,
-        commit: schema.commit,
-        url: schema.url,
-        service: schema.service,
-        target: schema.target,
-      };
-    });
-    const afterSchemasWithBase: SchemaObject[] = afterWithBase.map(s => this.helper.createSchemaObject(s));
-    const afterSchemas: SchemaObject[] = after.map(s => this.helper.createSchemaObject(s));
-    const beforeSchemas: SchemaObject[] = before.map(s => this.helper.createSchemaObject(s));
-
-    const isInitialSchema = beforeSchemas.length === 0;
-    const areIdentical = existing && hashSchema(existing) === hashSchema(incoming);
-
-    if (areIdentical) {
-      return {
-        valid: true,
-        errors: [],
-        changes: [],
-      };
     }
 
-    const errors = await orchestrator.validate(
-      afterSchemasWithBase,
-      project.externalComposition.enabled ? project.externalComposition : null
-    );
+    const compositionErrors = await orchestrator.validate(afterWithBase, project);
 
-    if (isInitialSchema) {
+    if (isInitial) {
       return {
-        valid: errors.length === 0,
-        errors: errors,
+        isComposable: compositionErrors.length === 0,
+        hasBreakingChanges: false,
+        errors: compositionErrors,
         changes: [],
       };
     }
 
     let changes: Types.SchemaChange[] = [];
+    let errors = [...compositionErrors];
+    let hasBreakingChanges = false;
 
     try {
       const [existingSchema, incomingSchema] = await Promise.all([
-        orchestrator.build(beforeSchemas, project.externalComposition),
-        orchestrator.build(afterSchemas, project.externalComposition),
+        orchestrator.build(schemas.before, project),
+        orchestrator.build(schemas.after, project),
       ]);
       if (existingSchema) {
         changes = await this.inspector.diff(buildSchema(existingSchema), buildSchema(incomingSchema), selector);
 
-        const hasBreakingChanges = changes.some(change => change.criticality === 'Breaking');
+        hasBreakingChanges = changes.some(change => change.criticality === 'Breaking');
 
         if (hasBreakingChanges) {
-          if (experimental_acceptBreakingChanges) {
-            this.logger.debug('Schema contains breaking changes, but the experimental safe mode is enabled');
+          if (acceptBreakingChanges) {
+            hasBreakingChanges = false;
+            this.logger.debug('Breaking changes detected, but ignored');
           } else {
+            this.logger.debug('Breaking changes detected');
             changes.forEach(change => {
               if (change.criticality === 'Breaking') {
                 errors.push({
@@ -124,11 +128,9 @@ export class SchemaValidator {
       });
     }
 
-    const hasErrors = errors.length > 0; // no errors means no breaking changes
-    const valid = !hasErrors;
-
     return {
-      valid,
+      isComposable: compositionErrors.length === 0,
+      hasBreakingChanges,
       errors,
       changes,
     };
