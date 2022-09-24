@@ -2,27 +2,16 @@ import 'regenerator-runtime/runtime';
 import Document, { Html, Head, Main, NextScript, DocumentContext } from 'next/document';
 import { extractCritical } from '@emotion/server';
 
-type FrontendEnvironment = {
-  APP_BASE_URL: string | undefined;
-  DOCS_URL: string | undefined;
-  STRIPE_PUBLIC_KEY: string | undefined;
-  AUTH_GITHUB: string | undefined;
-  AUTH_GOOGLE: string | undefined;
-  GA_TRACKING_ID: string | undefined;
-  CRISP_WEBSITE_ID: string | undefined;
-  SENTRY_DSN: string | undefined;
-  RELEASE: string | undefined;
-  ENVIRONMENT: string | undefined;
-  SENTRY_ENABLED: string | undefined;
-};
-
-export default class MyDocument extends Document<{ ids: Array<string>; css: string; __ENV__: FrontendEnvironment }> {
+export default class MyDocument extends Document<{ ids: Array<string>; css: string; __ENV__: string }> {
   static async getInitialProps(ctx: DocumentContext) {
+    console.log('MyDocument.getInitialProps');
+    console.log('Document', Document);
     const initialProps = await Document.getInitialProps(ctx);
+    console.log('got initial props');
     const page = await ctx.renderPage();
     const styles = extractCritical(page.html);
 
-    const __ENV__: FrontendEnvironment = {
+    const __ENV__: string = JSON.stringify({
       APP_BASE_URL: process.env['APP_BASE_URL'],
       DOCS_URL: process.env['DOCS_URL'],
       STRIPE_PUBLIC_KEY: process.env['STRIPE_PUBLIC_KEY'],
@@ -34,7 +23,7 @@ export default class MyDocument extends Document<{ ids: Array<string>; css: stri
       RELEASE: process.env['RELEASE'],
       ENVIRONMENT: process.env['ENVIRONMENT'],
       SENTRY_ENABLED: process.env['SENTRY_ENABLED'],
-    };
+    });
 
     return {
       ...initialProps,
@@ -73,7 +62,7 @@ export default class MyDocument extends Document<{ ids: Array<string>; css: stri
           <script
             type="module"
             dangerouslySetInnerHTML={{
-              __html: `globalThis["__ENV__"] = ${JSON.stringify((this.props as any).__ENV__)}`,
+              __html: `globalThis["__ENV__"] = ${(this.props as any).__ENV__}`,
             }}
           />
         </Head>

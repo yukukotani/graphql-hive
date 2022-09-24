@@ -3,6 +3,7 @@ function throwException(msg: string) {
 }
 
 export const appInfo = () => {
+  console.log({ env: globalThis.process?.env, __ENV__: globalThis?.['__ENV__'] });
   const appBaseUrl =
     globalThis.process?.env?.['APP_BASE_URL'] ??
     globalThis?.['__ENV__']?.['APP_BASE_URL'] ??
