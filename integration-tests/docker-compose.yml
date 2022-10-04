@@ -117,7 +117,7 @@ services:
       API_KEYS: bubatzbieber6942096420
 
   local_cdn:
-    image: node:16.13.2-alpine3.14
+    image: node:18.10.0-alpine3.15
     entrypoint:
       - '/bin/sh'
       - '/run-local-cdn.sh'
@@ -140,7 +140,7 @@ services:
       CDN_AUTH_PRIVATE_KEY: 1e1064ef9cda8bf38936b77317e90dc3
 
   external_composition:
-    image: node:16.13.2-alpine3.14
+    image: node:18.10.0-alpine3.15
     entrypoint:
       - '/bin/sh'
       - '/run-external-composition.sh'
