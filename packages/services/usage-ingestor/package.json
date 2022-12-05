@@ -5,6 +5,8 @@
   "license": "MIT",
   "private": true,
   "scripts": {
+    "benchmark:run": "k6 run benchmark/k6.js",
+    "benchmark:serve": "tsup-node benchmark/server.ts --format esm --target node16 --onSuccess 'NODE_ENV=production node dist/server.js' | pino-pretty --translateTime HH:MM:ss TT --ignore pid,hostname",
     "build": "bob runify --single",
     "dev": "tsup-node src/dev.ts --watch --format esm --target node16 --onSuccess 'node dist/dev.js' | pino-pretty --translateTime HH:MM:ss TT --ignore pid,hostname",
     "typecheck": "tsc --noEmit"

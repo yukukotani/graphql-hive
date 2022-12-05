@@ -844,8 +844,10 @@ importers:
 
   packages/services/usage-common:
     specifiers:
+      '@protobuf-ts/plugin': 2.8.2
       graphql: 16.6.0
     dependencies:
+      '@protobuf-ts/plugin': 2.8.2
       graphql: 16.6.0
 
   packages/services/usage-estimator:
@@ -8443,6 +8445,39 @@ packages:
 
   /@popperjs/core/2.4.4:
     resolution: {integrity: sha512-1oO6+dN5kdIA3sKPZhRGJTfGVP4SWV6KqlMOwry4J3HfyD68sl/3KmG7DeYUzvN+RbhXDnv/D8vNNB8168tAMg==}
+    dev: false
+
+  /@protobuf-ts/plugin-framework/2.8.2:
+    resolution: {integrity: sha512-ivcJdNVB3Iee8044f8erZGBgmB6ZfQbbKyxRgDBXRVKYxsruLr432WcT5upw9autK9OnlSVLaebi8kDneFXd2g==}
+    dependencies:
+      '@protobuf-ts/runtime': 2.8.2
+      typescript: 3.9.10
+    dev: false
+
+  /@protobuf-ts/plugin/2.8.2:
+    resolution: {integrity: sha512-rTPxaeKBfUar8ubKxbVdv4XL6AcGA0OOgHNHFyrfODP7Epy80omwuvgFJex1YpeNFJxm/FZXXj5Z+nHuhYEqJg==}
+    hasBin: true
+    dependencies:
+      '@protobuf-ts/plugin-framework': 2.8.2
+      '@protobuf-ts/protoc': 2.8.2
+      '@protobuf-ts/runtime': 2.8.2
+      '@protobuf-ts/runtime-rpc': 2.8.2
+      typescript: 3.9.10
+    dev: false
+
+  /@protobuf-ts/protoc/2.8.2:
+    resolution: {integrity: sha512-1e+rOgp22ElyqRWunSc8bhatJcvRe90AGPceVn67IFYzybvfKl17vP1igHddeYkN0dzOucnOrwqn2v1jnDfE2w==}
+    hasBin: true
+    dev: false
+
+  /@protobuf-ts/runtime-rpc/2.8.2:
+    resolution: {integrity: sha512-vum/Y7AXdUTWGFu7dke/jCSB9dV3Oo3iVPcce3j7KudpzzWarDkEGvXjKv3Y8zJPj5waToyxwBNSb7eo5Vw5WA==}
+    dependencies:
+      '@protobuf-ts/runtime': 2.8.2
+    dev: false
+
+  /@protobuf-ts/runtime/2.8.2:
+    resolution: {integrity: sha512-PVxsH81y9kEbHldxxG/8Y3z2mTXWQytRl8zNS0mTPUjkEC+8GUX6gj6LsA8EFp25fAs9V0ruh+aNWmPccEI9MA==}
     dev: false
 
   /@protobufjs/aspromise/1.1.2:
@@ -26218,6 +26253,12 @@ packages:
 
   /typescript/3.8.3:
     resolution: {integrity: sha512-MYlEfn5VrLNsgudQTVJeNaQFUAI7DkhnOjdpAp4T+ku1TfQClewlbSuTVHiA+8skNBgaf02TL/kLOvig4y3G8w==}
+    engines: {node: '>=4.2.0'}
+    hasBin: true
+    dev: false
+
+  /typescript/3.9.10:
+    resolution: {integrity: sha512-w6fIxVE/H1PkLKcCPsFqKE7Kv7QUwhU8qQY2MueZXWx5cPZdwFupLgKK3vntcK98BtNHZtAF4LA/yl2a7k8R6Q==}
     engines: {node: '>=4.2.0'}
     hasBin: true
     dev: false

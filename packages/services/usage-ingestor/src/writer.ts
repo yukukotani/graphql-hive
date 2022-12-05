@@ -51,10 +51,12 @@ export function createWriter({
   clickhouse,
   clickhouseMirror,
   logger,
+  write = writeCsv,
 }: {
   clickhouse: ClickHouseConfig;
   clickhouseMirror: ClickHouseConfig | null;
   logger: FastifyLoggerInstance;
+  write?: typeof writeCsv;
 }) {
   const httpAgent = new Agent(agentConfig);
   const httpsAgent = new Agent.HttpsAgent(agentConfig);
@@ -75,9 +77,9 @@ export function createWriter({
       const sql = `INSERT INTO operations (${operationsFields}) FORMAT CSV`;
 
       await Promise.all([
-        writeCsv(clickhouse, agents, sql, compressed, logger, 3),
+        write(clickhouse, agents, sql, compressed, logger, 3),
         clickhouseMirror
-          ? writeCsv(clickhouseMirror, agents, sql, compressed, logger, 3).catch(error => {
+          ? write(clickhouseMirror, agents, sql, compressed, logger, 3).catch(error => {
               logger.error('Failed to write operations to ClickHouse Cloud %s', error);
               // Ignore errors from clickhouse cloud
               return Promise.resolve();
@@ -95,9 +97,9 @@ export function createWriter({
       const sql = `INSERT INTO operation_collection (${registryFields}) FORMAT CSV`;
 
       await Promise.all([
-        writeCsv(clickhouse, agents, sql, compressed, logger, 3),
+        write(clickhouse, agents, sql, compressed, logger, 3),
         clickhouseMirror
-          ? writeCsv(clickhouseMirror, agents, sql, compressed, logger, 3).catch(error => {
+          ? write(clickhouseMirror, agents, sql, compressed, logger, 3).catch(error => {
               logger.error('Failed to write operation_collection to ClickHouse Cloud %s', error);
               // Ignore errors from clickhouse cloud
               return Promise.resolve();
@@ -113,7 +115,7 @@ export function createWriter({
 
         const csv = joinIntoSingleMessage(operations);
 
-        await writeCsv(
+        await write(
           clickhouse,
           agents,
           `INSERT INTO operations_new (${legacyOperationsFields}) FORMAT CSV`,
@@ -128,7 +130,7 @@ export function createWriter({
         }
 
         const csv = joinIntoSingleMessage(records);
-        await writeCsv(
+        await write(
           clickhouse,
           agents,
           `INSERT INTO operations_registry (${legacyRegistryFields}) FORMAT CSV`,
@@ -210,7 +212,6 @@ async function writeCsv(
       stopTimer({
         status: response.statusCode,
       });
-      return response;
     })
     .catch(error => {
       stopTimer({

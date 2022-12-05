@@ -187,7 +187,7 @@ export function createIngestor(config: {
   };
 }
 
-async function processMessage({
+export async function processMessage({
   processor,
   writer,
   message,
@@ -195,7 +195,7 @@ async function processMessage({
 }: {
   processor: ReturnType<typeof createProcessor>;
   writer: ReturnType<typeof createWriter>;
-  message: KafkaMessage;
+  message: Pick<KafkaMessage, 'value'>;
   logger: FastifyLoggerInstance;
 }) {
   reportMessageBytes.observe(message.value!.byteLength);

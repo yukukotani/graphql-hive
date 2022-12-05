@@ -3,7 +3,12 @@
   "version": "0.0.0",
   "license": "MIT",
   "private": true,
+  "scripts": {
+    "generate:protobuf": "protoc --ts_out src/gen --proto_path src/protos src/protos/message.proto",
+    "test": "tsup-node src/test.ts --watch --format esm --target node16 --onSuccess 'node dist/test.mjs'"
+  },
   "dependencies": {
+    "@protobuf-ts/plugin": "2.8.2",
     "graphql": "16.6.0"
   }
 }
