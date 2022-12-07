@@ -17,7 +17,9 @@ services:
       timeout: 5s
       retries: 6
     networks:
-      - 'stack'
+      - stack
+    ports:
+      - 5432:5432
     volumes:
       - ./.hive/postgres:/var/lib/postgresql/data
 
@@ -97,7 +99,9 @@ services:
   redis:
     image: bitnami/redis:6.2
     networks:
-      - 'stack'
+      - stack
+    ports:
+      - 6379:6379
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -257,7 +261,9 @@ services:
   schema:
     image: '${DOCKER_REGISTRY}schema${DOCKER_TAG}'
     networks:
-      - 'stack'
+      - stack
+    ports:
+      - 8085:3002
     depends_on:
       redis:
         condition: service_healthy
@@ -272,7 +278,9 @@ services:
   tokens:
     image: '${DOCKER_REGISTRY}tokens${DOCKER_TAG}'
     networks:
-      - 'stack'
+      - stack
+    ports:
+      - 8084:3003
     depends_on:
       storage:
         condition: service_completed_successfully
