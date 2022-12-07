@@ -1,11 +1,15 @@
-import * as utils from '@n1ru4l/dockest/test-helper';
 import { createFetch } from '@whatwg-node/fetch';
 import { createTRPCProxyClient, httpLink } from '@trpc/client';
 import type { InternalApi } from '@hive/server';
 import { z } from 'zod';
 import { ensureEnv } from './env';
 
-const graphqlAddress = utils.getServiceAddress('server', 3001);
+// eslint-disable-next-line no-process-env
+const graphqlUrl = process.env.SERVER_URL;
+
+// TODO: use as fallback
+// import * as utils from '@n1ru4l/dockest/test-helper';
+// const graphqlUrl = utils.getServiceAddress('server', 3001);
 
 const { fetch } = createFetch({
   useNodeFetch: true,
@@ -14,7 +18,7 @@ const { fetch } = createFetch({
 const internalApi = createTRPCProxyClient<InternalApi>({
   links: [
     httpLink({
-      url: `http://${graphqlAddress}/trpc`,
+      url: `${graphqlUrl}/trpc`,
       fetch,
     }),
   ],
@@ -45,7 +49,9 @@ const signUpUserViaEmail = async (
     throw new Error(`Signup failed. ${response.status}.\n ${body}`);
   }
 
-  return SignUpSignInUserResponseModel.parse(JSON.parse(body));
+  const data = JSON.parse(body);
+
+  return SignUpSignInUserResponseModel.parse(data);
 };
 
 const createSessionPayload = (superTokensUserId: string, email: string) => ({

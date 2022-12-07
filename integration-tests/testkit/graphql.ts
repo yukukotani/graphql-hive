@@ -1,10 +1,10 @@
-import * as utils from '@n1ru4l/dockest/test-helper';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { ExecutionResult, print } from 'graphql';
 import { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { createFetch } from '@whatwg-node/fetch';
 
-const registryAddress = utils.getServiceAddress('server', 3001);
+// eslint-disable-next-line no-process-env
+let registryUrl = process.env.SERVER_URL;
 
 const { fetch } = createFetch({
   useNodeFetch: true,
@@ -21,7 +21,11 @@ export async function execute<TResult, TVariables>(
     ? { variables?: never }
     : { variables: TVariables }),
 ) {
-  const response = await fetch(`http://${registryAddress}/graphql`, {
+  if (!registryUrl) {
+    const utils = await import('@n1ru4l/dockest/test-helper');
+    registryUrl = `http://${utils.getServiceAddress('server', 3001)}`;
+  }
+  const response = await fetch(`${registryUrl}/graphql`, {
     method: 'POST',
     body: JSON.stringify({
       query: print(params.document),
