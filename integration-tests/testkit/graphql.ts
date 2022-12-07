@@ -4,7 +4,7 @@ import { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { createFetch } from '@whatwg-node/fetch';
 
 // eslint-disable-next-line no-process-env
-let registryUrl = process.env.SERVER_URL;
+let registryUrl = process.env.SERVER_ENDPOINT;
 
 const { fetch } = createFetch({
   useNodeFetch: true,

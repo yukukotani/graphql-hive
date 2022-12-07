@@ -7,7 +7,7 @@ import { ensureEnv } from './env';
 const supertokensUrl = ensureEnv('SUPERTOKENS_CONNECTION_URI');
 
 // eslint-disable-next-line no-process-env
-const graphqlUrl = process.env.SERVER_URL;
+const graphqlUrl = process.env.SERVER_ENDPOINT;
 
 // TODO: use as fallback
 // import * as utils from '@n1ru4l/dockest/test-helper';
