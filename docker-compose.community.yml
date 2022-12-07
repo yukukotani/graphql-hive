@@ -116,7 +116,9 @@ services:
       db:
         condition: service_healthy
     networks:
-      - 'stack'
+      - stack
+    ports:
+      - 3567:3567
     environment:
       POSTGRESQL_USER: '${POSTGRES_USER}'
       POSTGRESQL_PASSWORD: '${POSTGRES_PASSWORD}'
