@@ -4,6 +4,8 @@ import type { InternalApi } from '@hive/server';
 import { z } from 'zod';
 import { ensureEnv } from './env';
 
+const supertokensUrl = ensureEnv('SUPERTOKENS_CONNECTION_URI');
+
 // eslint-disable-next-line no-process-env
 const graphqlUrl = process.env.SERVER_URL;
 
@@ -25,15 +27,15 @@ const internalApi = createTRPCProxyClient<InternalApi>({
 });
 
 const SignUpSignInUserResponseModel = z.object({
-  status: z.literal('OK'),
-  user: z.object({ email: z.string(), id: z.string(), timeJoined: z.number() }),
+  status: z.enum(['OK', 'EMAIL_ALREADY_EXISTS_ERROR']),
+  user: z.object({ email: z.string(), id: z.string(), timeJoined: z.number() }).nullish(),
 });
 
 const signUpUserViaEmail = async (
   email: string,
   password: string,
 ): Promise<z.TypeOf<typeof SignUpSignInUserResponseModel>> => {
-  const response = await fetch(`${ensureEnv('SUPERTOKENS_CONNECTION_URI')}/recipe/signup`, {
+  const response = await fetch(`${supertokensUrl}/recipe/signup`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json; charset=UTF-8',
@@ -48,10 +50,29 @@ const signUpUserViaEmail = async (
   if (response.status !== 200) {
     throw new Error(`Signup failed. ${response.status}.\n ${body}`);
   }
+  return SignUpSignInUserResponseModel.parse(JSON.parse(body));
+};
 
-  const data = JSON.parse(body);
-
-  return SignUpSignInUserResponseModel.parse(data);
+const signInUserViaEmail = async (
+  email: string,
+  password: string,
+): Promise<z.TypeOf<typeof SignUpSignInUserResponseModel>> => {
+  const response = await fetch(`${supertokensUrl}/recipe/signin`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json; charset=UTF-8',
+      'api-key': ensureEnv('SUPERTOKENS_API_KEY'),
+    },
+    body: JSON.stringify({
+      email,
+      password,
+    }),
+  });
+  const body = await response.text();
+  if (response.status !== 200) {
+    throw new Error(`Signin failed. ${response.status}.\n ${body}`);
+  }
+  return SignUpSignInUserResponseModel.parse(JSON.parse(body));
 };
 
 const createSessionPayload = (superTokensUserId: string, email: string) => ({
@@ -122,8 +143,8 @@ export function userEmail(userId: string) {
   return `${userId}@localhost.localhost`;
 }
 
-const tokenResponsePromise: {
-  [key: string]: Promise<z.TypeOf<typeof SignUpSignInUserResponseModel>> | null;
+const usersAuth: {
+  [key: string]: z.TypeOf<typeof SignUpSignInUserResponseModel> | null;
 } = {};
 
 export function authenticate(userId: string): Promise<{ access_token: string }>;
@@ -131,15 +152,22 @@ export function authenticate(
   userId: string,
   oidcIntegrationId?: string,
 ): Promise<{ access_token: string }>;
-export function authenticate(
+export async function authenticate(
   userId: string | string,
   oidcIntegrationId?: string,
 ): Promise<{ access_token: string }> {
-  if (!tokenResponsePromise[userId]) {
-    tokenResponsePromise[userId] = signUpUserViaEmail(userEmail(userId), password);
+  if (!usersAuth[userId]) {
+    let user = await signUpUserViaEmail(userEmail(userId), password);
+    if (user.status === 'EMAIL_ALREADY_EXISTS_ERROR') {
+      user = await signInUserViaEmail(userEmail(userId), password);
+    }
+    usersAuth[userId] = user;
   }
 
-  return tokenResponsePromise[userId]!.then(data =>
-    createSession(data.user.id, data.user.email, oidcIntegrationId ?? null),
-  );
+  const auth = usersAuth[userId]!;
+  if (!auth.user) {
+    throw new Error('User not authenticated');
+  }
+
+  return createSession(auth.user.id, auth.user.email, oidcIntegrationId ?? null);
 }
