@@ -1948,7 +1948,7 @@ test('publishing composable schema without the definition of the Query type, but
   expect(latestValid.body.data?.latestValidVersion.schemas.nodes[0].commit).toBe('users');
 });
 
-it('should publish only one schema if multiple same publishes are started in parallel', async () => {
+it.only('should publish only one schema if multiple same publishes are started in parallel', async () => {
   const { access_token: owner_access_token } = await authenticate('main');
 
   const orgResult = await createOrganization(
