@@ -43,7 +43,7 @@ export const resolvers: BillingModule.Resolvers = {
 
       if (!billingRecord) {
         return {
-          hasActiveSubscription: false,
+          hasActiveSubscription: null as any,
           paymentMethod: null,
           billingAddress: null,
           invoices: null,

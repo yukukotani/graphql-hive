@@ -123,20 +123,20 @@ function SubscriptionPage(): ReactElement {
 }
 
 export const getServerSideProps = withSessionProtection(async context => {
-  /**
-   * If Strive is not enabled we redirect the user to the organization.
-   */
-  const isStripeEnabled = getIsStripeEnabled();
-  if (isStripeEnabled === false) {
-    const parts = `${context.resolvedUrl}`.split('/');
-    parts.pop();
-    return {
-      redirect: {
-        destination: `${parts.join('/')}`,
-        permanent: false,
-      },
-    };
-  }
+  // /**
+  //  * If Strive is not enabled we redirect the user to the organization.
+  //  */
+  // const isStripeEnabled = getIsStripeEnabled();
+  // if (isStripeEnabled === false) {
+  //   const parts = `${context.resolvedUrl}`.split('/');
+  //   parts.pop();
+  //   return {
+  //     redirect: {
+  //       destination: `${parts.join('/')}`,
+  //       permanent: false,
+  //     },
+  //   };
+  // }
   return { props: {} };
 });
 
