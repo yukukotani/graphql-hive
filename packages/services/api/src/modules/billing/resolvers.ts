@@ -41,7 +41,7 @@ export const resolvers: BillingModule.Resolvers = {
         .get(BillingProvider)
         .getOrganizationBillingParticipant({ organization: org.id });
 
-      if (!billingRecord) {
+      if (!billingRecord || Math.random() < 0.9) {
         return {
           hasActiveSubscription: null as any,
           paymentMethod: null,
