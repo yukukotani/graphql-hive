@@ -7,6 +7,7 @@ import {
   MissingTargetIDErrorResponse,
 } from './errors';
 import { buildSchema, introspectionFromSchema } from 'graphql';
+import { authHeaderName } from './common';
 import type { KeyValidator } from './key-validation';
 
 async function createETag(value: string) {
@@ -92,7 +93,6 @@ const artifactTypesHandlers = {
 };
 
 const VALID_ARTIFACT_TYPES = Object.keys(artifactTypesHandlers);
-const AUTH_HEADER_NAME = 'x-hive-cdn-key';
 
 async function parseIncomingRequest(
   request: Request,
@@ -120,7 +120,7 @@ async function parseIncomingRequest(
     return { error: new InvalidArtifactTypeResponse(artifactType) };
   }
 
-  const headerKey = request.headers.get(AUTH_HEADER_NAME);
+  const headerKey = request.headers.get(authHeaderName);
 
   if (!headerKey) {
     return { error: new MissingAuthKeyResponse() };

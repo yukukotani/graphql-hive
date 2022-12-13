@@ -4,6 +4,8 @@ import itty from 'itty-router';
 import zod from 'zod';
 import { InvalidAuthKeyResponse, MissingAuthKeyResponse } from './errors';
 import type { ArtifactsType } from '@hive/api/src/modules/schema/providers/artifact-storage-reader';
+import { authHeaderName } from './common';
+import type { Cache } from './cache';
 
 const { Response } = createFetch({ useNodeFetch: true });
 
@@ -29,8 +31,6 @@ const ParamsModel = zod.object({
     zod.literal('supergraph'),
   ]),
 });
-
-const authHeaderName = 'x-hive-cdn-key' as const;
 
 export const createArtifactRequestHandler = (deps: ArtifactRequestHandler) => {
   const router = itty.Router<itty.Request & Request>();

@@ -6,6 +6,8 @@ import { createIsKeyValid } from './key-validation';
 import { UnexpectedError } from './errors';
 import { createRequestHandler } from './handler';
 import { createArtifactRequestHandler } from './artifact-handler';
+import { authHeaderName } from './common';
+import { createCache } from './cache';
 
 /**
  * KV Storage for the CDN
@@ -89,13 +91,21 @@ self.addEventListener('fetch', async (event: FetchEvent) => {
   });
 
   try {
+    const cache = await createCache(event.waitUntil);
+    const cachedResponse = await cache.match(event.request);
+
+    if (cachedResponse) {
+      return event.respondWith(cachedResponse);
+    }
+
     event.respondWith(
       router
-        .handle(event.request)
-        .then(response => {
+        .handle(event.request, cache)
+        .then((response?: Response | null) => {
           if (response) {
-            return response;
+            return cache.wrap(event.request, response);
           }
+
           return new Response('Not found', { status: 404 });
         })
         .catch(err => {
