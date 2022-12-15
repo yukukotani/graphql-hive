@@ -313,6 +313,8 @@ services:
     image: '${DOCKER_REGISTRY}emails${DOCKER_TAG}'
     networks:
       - 'stack'
+    ports:
+      - 8086:3011
     depends_on:
       redis:
         condition: service_healthy
