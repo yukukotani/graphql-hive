@@ -1,0 +1,390 @@
+networks:
+  stack:
+    name: hive
+
+services:
+  db:
+    image: postgres:13.4-alpine
+    environment:
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      PGPORT: ${POSTGRES_PORT} # for postgres client utilities (like psql)
+      POSTGRES_DB: $POSTGRES_DB
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      PGDATA: /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}']
+      interval: 5s
+      timeout: 5s
+      retries: 6
+    networks:
+      - stack
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:22.12-alpine
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'localhost:$${CLICKHOUSE_PORT}/ping']
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    environment:
+      CLICKHOUSE_PORT: $CLICKHOUSE_PORT
+      CLICKHOUSE_USER: $CLICKHOUSE_USER
+      CLICKHOUSE_PASSWORD: $CLICKHOUSE_PASSWORD
+    networks:
+      - stack
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.1
+    hostname: zookeeper
+    networks:
+      - stack
+    ulimits:
+      nofile:
+        soft: 20000
+        hard: 40000
+    environment:
+      ZOOKEEPER_CLIENT_PORT: $ZOOKEEPER_CLIENT_PORT
+      ZOOKEEPER_TICK_TIME: 2000
+
+  broker:
+    image: confluentinc/cp-kafka:7.3.1
+    hostname: broker
+    depends_on:
+      zookeeper:
+        condition: service_started
+    networks:
+      - stack
+    ulimits:
+      nofile:
+        soft: 20000
+        hard: 40000
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'cub',
+          'kafka-ready',
+          '1',
+          '5',
+          '-b',
+          '127.0.0.1:9092',
+          '-c',
+          '/etc/kafka/kafka.properties',
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 15s
+    environment:
+      KAFKA_BROKER_ID: 1
+      ZOOKEEPER_CLIENT_PORT: $ZOOKEEPER_CLIENT_PORT
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:${ZOOKEEPER_CLIENT_PORT}
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  redis:
+    image: bitnami/redis:7.0.8
+    networks:
+      - stack
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 10s
+      retries: 6
+      start_period: 5s
+    environment:
+      REDIS_PORT_NUMBER: $REDIS_PORT # yeah its REDIS_PORT_NUMBER for redis
+      REDIS_PASSWORD: $REDIS_PASSWORD
+      REDIS_DISABLE_COMMANDS: FLUSHDB,FLUSHALL
+
+  supertokens:
+    image: registry.supertokens.io/supertokens/supertokens-postgresql:4.3
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - stack
+    environment:
+      POSTGRESQL_USER: $POSTGRES_USER
+      POSTGRESQL_PASSWORD: $POSTGRES_PASSWORD
+      POSTGRESQL_DATABASE_NAME: $POSTGRES_DB
+      POSTGRESQL_TABLE_NAMES_PREFIX: supertokens
+      POSTGRESQL_HOST: db
+      POSTGRESQL_PORT: $POSTGRES_PORT
+      API_KEYS: $SUPERTOKENS_API_KEY
+      ACCESS_TOKEN_BLACKLISTING: 'true'
+
+  s3:
+    image: quay.io/minio/minio:RELEASE.2022-11-29T23-40-49Z
+    command: server /data --console-address ":$${S3_CONSOLE_PORT}"
+    # TODO: exposed ports necessary for prod?
+    ports:
+      - ${S3_PORT}:${S3_PORT}
+      - ${S3_CONSOLE_PORT}:${S3_CONSOLE_PORT}
+    networks:
+      - stack
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:$${S3_PORT}/minio/health/live']
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    environment:
+      S3_PORT: $S3_PORT
+      S3_CONSOLE_PORT: $S3_CONSOLE_PORT
+      MINIO_ROOT_USER: $MINIO_ROOT_USER
+      MINIO_ROOT_PASSWORD: $MINIO_ROOT_PASSWORD
+
+  s3_provision_buckets:
+    image: quay.io/minio/mc:RELEASE.2022-11-17T21-20-39Z
+    depends_on:
+      s3:
+        condition: service_healthy
+    networks:
+      - stack
+    environment:
+      S3_PORT: $S3_PORT
+      MINIO_ROOT_USER: $MINIO_ROOT_USER
+      MINIO_ROOT_PASSWORD: $MINIO_ROOT_PASSWORD
+    entrypoint: >
+      /bin/sh -c " /usr/bin/mc alias set myminio http://s3:$${S3_PORT} ${MINIO_ROOT_USER}
+      ${MINIO_ROOT_PASSWORD}; /usr/bin/mc ls myminio/artifacts >/dev/null 2>&1 || /usr/bin/mc mb
+      myminio/artifacts; exit 0"
+
+  s3_reverse_proxy:
+    image: caddy:2.6.2-alpine
+    depends_on:
+      s3:
+        condition: service_healthy
+    networks:
+      - stack
+    environment:
+      S3_PORT: $S3_PORT
+      S3_PUBLIC_PORT: $S3_PUBLIC_PORT
+    ports:
+      - ${S3_PUBLIC_PORT}:${S3_PUBLIC_PORT}
+    command: caddy reverse-proxy --from :$${S3_PUBLIC_PORT} --to s3:$${S3_PORT} --change-host-header
+
+  migrations:
+    image: ${DOCKER_REGISTRY}storage${DOCKER_TAG}
+    networks:
+      - stack
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      MIGRATOR: up
+      CLICKHOUSE_MIGRATOR: up
+      POSTGRES_HOST: db
+      POSTGRES_PORT: $POSTGRES_PORT
+      POSTGRES_DB: $POSTGRES_DB
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      CLICKHOUSE_PROTOCOL: http
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: $CLICKHOUSE_PORT
+      CLICKHOUSE_USERNAME: $CLICKHOUSE_USER
+      CLICKHOUSE_PASSWORD: $CLICKHOUSE_PASSWORD
+      # TODO: "true" needs to be a string?
+      TS_NODE_TRANSPILE_ONLY: 'true'
+
+  server:
+    image: ${DOCKER_REGISTRY}server${DOCKER_TAG}
+    networks:
+      - stack
+    depends_on:
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      s3_provision_buckets:
+        condition: service_completed_successfully
+      tokens:
+        condition: service_healthy
+      webhooks:
+        condition: service_healthy
+      emails:
+        condition: service_healthy
+      schema:
+        condition: service_healthy
+    ports:
+      # TODO: rename to SERVER_PORT
+      - ${PORT}:${PORT}
+    environment:
+      NODE_ENV: production
+      POSTGRES_HOST: db
+      POSTGRES_PORT: $POSTGRES_PORT
+      POSTGRES_DB: $POSTGRES_DB
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      # TODO: "true" needs to be a string?
+      ROARR_LOG: 'true'
+      CLICKHOUSE_PROTOCOL: http
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: $CLICKHOUSE_PORT
+      CLICKHOUSE_USERNAME: $CLICKHOUSE_USER
+      CLICKHOUSE_PASSWORD: $CLICKHOUSE_PASSWORD
+      REDIS_HOST: redis
+      REDIS_PORT: $REDIS_PORT
+      REDIS_PASSWORD: $REDIS_PASSWORD
+      TOKENS_ENDPOINT: http://tokens:3003
+      WEBHOOKS_ENDPOINT: http://webhooks:3005
+      SCHEMA_ENDPOINT: http://schema:3002
+      EMAILS_PORT: $EMAILS_PORT
+      EMAILS_ENDPOINT: http://emails:${EMAILS_PORT}
+      ENCRYPTION_SECRET: $HIVE_ENCRYPTION_SECRET
+      WEB_APP_URL: $HIVE_APP_BASE_URL
+      PORT: $SERVER_PORT
+      SUPERTOKENS_CONNECTION_URI: http://supertokens:3567
+      SUPERTOKENS_API_KEY: $SUPERTOKENS_API_KEY
+      S3_PORT: $S3_PORT
+      S3_ENDPOINT: http://s3:${S3_PORT}
+      S3_ACCESS_KEY_ID: $MINIO_ROOT_USER
+      S3_SECRET_ACCESS_KEY: $MINIO_ROOT_PASSWORD
+      S3_BUCKET_NAME: artifacts
+      S3_PUBLIC_PORT: $S3_PUBLIC_PORT
+      S3_PUBLIC_URL: http://localhost:${S3_PUBLIC_PORT}
+      CDN_AUTH_PRIVATE_KEY: $CDN_AUTH_PRIVATE_KEY
+      USAGE_ESTIMATOR_ENDPOINT: http://usage-estimator:3008
+      RATE_LIMIT_ENDPOINT: http://rate-limit:3009
+      # TODO: "1" needs to be a string?
+      CDN_API: '1'
+      CDN_API_BASE_URL: http://localhost:${PORT}
+
+  schema:
+    image: ${DOCKER_REGISTRY}schema${DOCKER_TAG}
+    networks:
+      - stack
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: $SCHEMA_PORT
+      REDIS_HOST: redis
+      REDIS_PORT: $REDIS_PORT
+      REDIS_PASSWORD: $REDIS_PASSWORD
+      ENCRYPTION_SECRET: $HIVE_ENCRYPTION_SECRET
+
+  tokens:
+    image: ${DOCKER_REGISTRY}tokens${DOCKER_TAG}
+    networks:
+      - stack
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      POSTGRES_HOST: db
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      POSTGRES_PORT: $POSTGRES_PORT
+      POSTGRES_DB: $POSTGRES_DB
+      ROARR_LOG: true
+      PORT: $TOKENS_PORT
+
+  webhooks:
+    image: ${DOCKER_REGISTRY}webhooks${DOCKER_TAG}
+    networks:
+      - stack
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: $WEBHOOKS_PORT
+      REDIS_HOST: redis
+      REDIS_PORT: $REDIS_PORT
+      REDIS_PASSWORD: $REDIS_PASSWORD
+
+  emails:
+    image: ${DOCKER_REGISTRY}emails${DOCKER_TAG}
+    networks:
+      - stack
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: $EMAILS_PORT
+      REDIS_HOST: redis
+      REDIS_PORT: $REDIS_PORT
+      REDIS_PASSWORD: $REDIS_PASSWORD
+      EMAIL_FROM: no-reply@graphql-hive.com
+      EMAIL_PROVIDER: sendmail
+
+  usage:
+    image: ${DOCKER_REGISTRY}usage${DOCKER_TAG}
+    networks:
+      - stack
+    depends_on:
+      broker:
+        condition: service_healthy
+      tokens:
+        condition: service_healthy
+    ports:
+      - ${USAGE_PORT}:${USAGE_PORT}
+    environment:
+      NODE_ENV: production
+      TOKENS_ENDPOINT: http://tokens:3003
+      KAFKA_CONNECTION_MODE: docker
+      KAFKA_TOPIC: usage_reports_v2
+      KAFKA_BROKER: broker:29092
+      KAFKA_BUFFER_SIZE: 350
+      KAFKA_BUFFER_INTERVAL: 1000
+      # TODO: "1" needs to be a string?
+      KAFKA_BUFFER_DYNAMIC: '1'
+      PORT: $USAGE_PORT
+
+  usage-ingestor:
+    image: ${DOCKER_REGISTRY}usage-ingestor${DOCKER_TAG}
+    networks:
+      - stack
+    depends_on:
+      broker:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      KAFKA_CONNECTION_MODE: docker
+      KAFKA_BROKER: broker:29092
+      KAFKA_CONCURRENCY: '1'
+      KAFKA_CONSUMER_GROUP: usage-ingestor-v2
+      KAFKA_TOPIC: usage_reports_v2
+      CLICKHOUSE_PROTOCOL: http
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: $CLICKHOUSE_PORT
+      CLICKHOUSE_USERNAME: $CLICKHOUSE_USER
+      CLICKHOUSE_PASSWORD: $CLICKHOUSE_PASSWORD
+      PORT: $USAGE_INGESTOR_PORT
+
+  app:
+    image: ${DOCKER_REGISTRY}app${DOCKER_TAG}
+    ports:
+      - ${APP_PORT}:${APP_PORT}
+    networks:
+      - stack
+    environment:
+      PORT: $APP_PORT
+      NODE_ENV: production
+      APP_BASE_URL: $HIVE_APP_BASE_URL
+      SUPERTOKENS_CONNECTION_URI: http://supertokens:3567
+      SUPERTOKENS_API_KEY: $SUPERTOKENS_API_KEY
+      EMAILS_PORT: $EMAILS_PORT
+      EMAILS_ENDPOINT: http://emails:${EMAILS_PORT}
+      SERVER_PORT: $SERVER_PORT
+      GRAPHQL_ENDPOINT: http://server:${SERVER_PORT}/graphql
+      SERVER_ENDPOINT: http://server:${SERVER_PORT}
+      # TODO: "0" needs to be a string?
+      AUTH_REQUIRE_EMAIL_VERIFICATION: '0'

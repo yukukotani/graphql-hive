@@ -1,0 +1,41 @@
+services:
+  db:
+    ports:
+      - ${POSTGRES_PORT}:${POSTGRES_PORT}
+    volumes:
+      - .hive/postgres:/var/lib/postgresql/data
+
+  clickhouse:
+    volumes:
+      - .hive/clickhouse/db:/var/lib/clickhouse
+
+  zookeeper:
+    volumes:
+      - .hive/zookeeper/db:/var/lib/zookeeper/data
+
+  broker:
+    volumes:
+      - .hive/broker/db:/var/lib/kafka/data
+
+  redis:
+    volumes:
+      - .hive/redis/db:/bitnami/redis/data
+
+  s3:
+    volumes:
+      - .hive/minio/db:/data
+
+  tokens:
+    ports:
+      # TODO: rename to TOKENS_PORT
+      - ${PORT}:${PORT}
+
+  webhooks:
+    ports:
+      # TODO: rename to WEBHOOKS_PORT
+      - ${PORT}:${PORT}
+
+  emails:
+    ports:
+      # TODO: rename to EMAILS_PORT
+      - ${PORT}:${PORT}
