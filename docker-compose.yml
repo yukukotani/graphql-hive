@@ -218,8 +218,7 @@ services:
       schema:
         condition: service_healthy
     ports:
-      # TODO: rename to SERVER_PORT
-      - ${PORT}:${PORT}
+      - ${SERVER_PORT}:${SERVER_PORT}
     environment:
       NODE_ENV: production
       POSTGRES_HOST: db

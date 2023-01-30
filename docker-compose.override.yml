@@ -27,15 +27,12 @@ services:
 
   tokens:
     ports:
-      # TODO: rename to TOKENS_PORT
-      - ${PORT}:${PORT}
+      - ${TOKENS_PORT}:${TOKENS_PORT}
 
   webhooks:
     ports:
-      # TODO: rename to WEBHOOKS_PORT
-      - ${PORT}:${PORT}
+      - ${WEBHOOKS_PORT}:${WEBHOOKS_PORT}
 
   emails:
     ports:
-      # TODO: rename to EMAILS_PORT
-      - ${PORT}:${PORT}
+      - ${EMAILS_PORT}:${EMAILS_PORT}
