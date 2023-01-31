@@ -57,6 +57,9 @@ typings/
 # Output of 'npm pack'
 *.tgz
 
+# dotenv environment variables file
+packages/**/.env
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 
