@@ -23,13 +23,12 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:22.12-alpine
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'localhost:$${CLICKHOUSE_PORT}/ping']
+      test: ['CMD', 'wget', '--spider', '-q', 'localhost:${CLICKHOUSE_PORT}/ping']
       interval: 5s
       timeout: 5s
       retries: 6
       start_period: 10s
     environment:
-      CLICKHOUSE_PORT: $CLICKHOUSE_PORT
       CLICKHOUSE_USER: $CLICKHOUSE_USER
       CLICKHOUSE_PASSWORD: $CLICKHOUSE_PASSWORD
     networks:
@@ -123,7 +122,7 @@ services:
 
   s3:
     image: quay.io/minio/minio:RELEASE.2022-11-29T23-40-49Z
-    command: server /data --console-address ":$${S3_CONSOLE_PORT}"
+    command: server /data --console-address ":\${S3_CONSOLE_PORT}"
     # TODO: exposed ports necessary for prod?
     ports:
       - ${S3_PORT}:${S3_PORT}
@@ -131,13 +130,11 @@ services:
     networks:
       - stack
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:$${S3_PORT}/minio/health/live']
-      interval: 30s
-      timeout: 20s
+      test: ['CMD', 'curl', '-f', 'http://localhost:${S3_PORT}/minio/health/live']
+      interval: 5s
+      timeout: 5s
       retries: 3
     environment:
-      S3_PORT: $S3_PORT
-      S3_CONSOLE_PORT: $S3_CONSOLE_PORT
       MINIO_ROOT_USER: $MINIO_ROOT_USER
       MINIO_ROOT_PASSWORD: $MINIO_ROOT_PASSWORD
 
