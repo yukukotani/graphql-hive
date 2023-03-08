@@ -1,4 +1,13 @@
 {
   "cli": "Hive CLI",
-  "client": "Hive Client"
+  "client": "Hive Client",
+  "graphql-api": {
+    "title": "GraphQL API",
+    "theme": {
+      "toc": false
+    }
+  },
+  "_cli-header": {
+    "display": "hidden"
+  }
 }

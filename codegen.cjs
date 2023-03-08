@@ -5,6 +5,9 @@ const config = {
   schema: './packages/services/api/src/modules/*/module.graphql.ts',
   emitLegacyCommonJSImports: true,
   generates: {
+    './packages/web/docs/src/schema.json': {
+      plugins: ['introspection'],
+    },
     // API
     './packages/services/api/src/modules': {
       preset: 'graphql-modules',

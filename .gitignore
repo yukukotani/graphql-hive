@@ -129,3 +129,5 @@ packages/web/app/src/gql/*.ts
 packages/web/app/src/graphql/*.ts
 
 _redirects
+
+packages/web/docs/src/schema.json
