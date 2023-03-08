@@ -188,7 +188,9 @@ export class AuthManager {
 
   getCurrentUser: () => Promise<(User & { isAdmin: boolean }) | never> = share(async () => {
     if (!this.session) {
-      throw new AccessError('Authorization token is missing');
+      throw new AccessError(
+        'Authorization token is missing, or the token used it not allowed to access this field.',
+      );
     }
 
     const user = await this.storage.getUserBySuperTokenId({

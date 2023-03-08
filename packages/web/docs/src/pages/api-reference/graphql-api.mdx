@@ -1,10 +1,189 @@
+import { Callout } from '@theguild/components'
 import { GraphQLApiPlayground } from '../../components/playground'
 
 # Hive GraphQL API
 
 To get started with the API Playground, create a
-[Registry Access Token](/management/targets#registry-access-tokens) and use it in the following:
+[Registry Access Token](/management/targets#registry-access-tokens) and use it in the following
+input:
 
 <GraphQLApiPlayground />
 
-## Useful Queries
+<Callout>
+  By using a Registry Access Token, you can only access certain parts of the GraphQL schema, that is
+  related directly to the target associated with the token.
+</Callout>
+
+## API Information
+
+The GraphQL API of Hive is available at `https://app.graphql-hive.com/graphql` and it's accepting
+only `POST` requests with a `Content-Type: application/json` header.
+
+## Examples Operations
+
+<details>
+  <summary>Token Information</summary>
+
+Returns information regarding the token used to authenticate, the associated target, project and
+organization.
+
+```graphql
+query myTokenInfo {
+  tokenInfo {
+    __typename
+    ... on TokenInfo {
+      token {
+        name
+      }
+      organization {
+        name
+        cleanId
+      }
+      project {
+        name
+        type
+        cleanId
+      }
+      target {
+        name
+        cleanId
+      }
+      canPublishSchema: hasTargetScope(scope: REGISTRY_WRITE)
+      canCheckSchema: hasTargetScope(scope: REGISTRY_READ)
+      canPublishOperations: hasProjectScope(scope: OPERATIONS_STORE_WRITE)
+    }
+    ... on TokenNotFoundError {
+      message
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+  <summary>Check schema</summary>
+
+Check a schema chaneg against the registry.
+
+```graphql
+mutation schemaCheck($input: SchemaCheckInput!) {
+  schemaCheck(input: $input) {
+    __typename
+    ... on SchemaCheckSuccess {
+      valid
+      initial
+      changes {
+        nodes {
+          message
+          criticality
+        }
+        total
+      }
+    }
+    ... on SchemaCheckError {
+      valid
+      changes {
+        nodes {
+          message
+          criticality
+        }
+        total
+      }
+      errors {
+        nodes {
+          message
+        }
+        total
+      }
+    }
+    ... on GitHubSchemaCheckSuccess @include(if: $usesGitHubApp) {
+      message
+    }
+    ... on GitHubSchemaCheckError @include(if: $usesGitHubApp) {
+      message
+    }
+  }
+}
+```
+
+Variables example:
+
+```json
+{
+  "input": {
+    "sdl": "type Query { hello: String }"
+  }
+}
+```
+
+</details>
+
+<details>
+  <summary>Publish schema</summary>
+
+Publish a schema to the registry. The schema must be in SDL format.
+
+```graphql
+mutation schemaPublish($input: SchemaPublishInput!) {
+  schemaPublish(input: $input) {
+    __typename
+    ... on SchemaPublishSuccess {
+      initial
+      valid
+      successMessage: message
+      linkToWebsite
+      changes {
+        nodes {
+          message
+          criticality
+        }
+        total
+      }
+    }
+    ... on SchemaPublishError {
+      valid
+      linkToWebsite
+      changes {
+        nodes {
+          message
+          criticality
+        }
+        total
+      }
+      errors {
+        nodes {
+          message
+        }
+        total
+      }
+    }
+    ... on SchemaPublishMissingServiceError {
+      missingServiceError: message
+    }
+    ... on SchemaPublishMissingUrlError {
+      missingUrlError: message
+    }
+    ... on GitHubSchemaPublishSuccess @include(if: $usesGitHubApp) {
+      message
+    }
+    ... on GitHubSchemaPublishError @include(if: $usesGitHubApp) {
+      message
+    }
+  }
+}
+```
+
+Variables example:
+
+```json
+{
+  "input": {
+    "sdl": "type Query { hello: String }",
+    "author": "me",
+    "commit": "test"
+  }
+}
+```
+
+</details>
