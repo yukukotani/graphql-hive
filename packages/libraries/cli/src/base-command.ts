@@ -1,9 +1,10 @@
 import colors from 'colors';
-import { ClientError, GraphQLClient } from 'graphql-request';
+import { GraphQLError } from 'graphql';
+import * as Dom from 'graphql-request/src/types.dom';
 import symbols from 'log-symbols';
 import { Command, Errors, Config as OclifConfig } from '@oclif/core';
+import { fetch } from '@whatwg-node/fetch';
 import { Config } from './helpers/config';
-import { getSdk } from './sdk';
 
 export default abstract class extends Command {
   protected _userConfig: Config;
@@ -119,18 +120,18 @@ export default abstract class extends Command {
     return requestId ? requestId.split(',')[0].trim() : undefined;
   }
 
-  registryApi(registry: string, token: string) {
-    return getSdk(
-      new GraphQLClient(registry, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': `hive-cli/${this.config.version}`,
-          Authorization: `Bearer ${token}`,
-          'graphql-client-name': 'Hive CLI',
-          'graphql-client-version': this.config.version,
-        },
-      }),
-    );
+  async registryApi(registry: string, token: string) {
+    const response = await fetch(registry, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': `hive-cli/${this.config.version}`,
+        Authorization: `Bearer ${token}`,
+        'graphql-client-name': 'Hive CLI',
+        'graphql-client-version': this.config.version,
+      },
+    });
+
+    return response.json();
   }
 
   handleFetchError(error: unknown): never {
@@ -172,6 +173,13 @@ export default abstract class extends Command {
     }
   }
 }
+
+type ClientError = Error & {
+  response: {
+    errors?: GraphQLError[];
+    headers: Dom.Headers;
+  };
+};
 
 function isClientError(error: Error): error is ClientError {
   return 'response' in error;

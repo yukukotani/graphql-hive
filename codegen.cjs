@@ -141,7 +141,7 @@ const config = {
       config: {
         flattenGeneratedTypes: true,
       },
-      plugins: ['typescript', 'typescript-operations', 'typescript-graphql-request'],
+      plugins: ['typescript', 'typescript-operations'],
     },
     // Client
     'packages/libraries/client/src/__generated__/types.ts': {
