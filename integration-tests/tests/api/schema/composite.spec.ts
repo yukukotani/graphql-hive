@@ -242,4 +242,140 @@ describe.each`
       );
     },
   );
+
+  test.concurrent.only(
+    'should publish A, publish B, delete B, delete A and publish C',
+    async () => {
+      const { createOrg } = await initSeed().createOwner();
+      const { createProject } = await createOrg();
+      const { createToken } = await createProject(projectType);
+      const { publishSchema, deleteSchema, fetchVersions, fetchLatestValidSchema } =
+        await createToken({
+          targetScopes: [TargetAccessScope.RegistryRead, TargetAccessScope.RegistryWrite],
+          projectScopes: [],
+          organizationScopes: [],
+        });
+
+      const serviceA = /* GraphQL */ `
+        type Query {
+          topProduct: Product
+        }
+
+        type Product {
+          id: ID!
+          name: String
+        }
+      `;
+
+      const serviceB = /* GraphQL */ `
+        type Query {
+          topReview: Review
+        }
+
+        type Review {
+          id: ID!
+          title: String
+        }
+      `;
+
+      const serviceC = /* GraphQL */ `
+        type Query {
+          topAnimal: Animal
+        }
+
+        union Animal = Dog | Cat
+
+        type Dog {
+          id: ID!
+          name: String
+        }
+
+        type Cat {
+          id: ID!
+          name: String
+        }
+      `;
+
+      await publishSchema({
+        author: 'Kamil',
+        commit: 'pushA',
+        sdl: serviceA,
+        service: 'service-a',
+        url: 'http://localhost:4001',
+      }).then(r => r.expectNoGraphQLErrors());
+
+      await expect(fetchVersions(2)).resolves.toHaveLength(1);
+
+      await publishSchema({
+        author: 'Kamil',
+        commit: 'pushB',
+        sdl: serviceB,
+        service: 'service-b',
+        url: 'http://localhost:4002',
+      }).then(r => r.expectNoGraphQLErrors());
+
+      // We should have 2 versions (push A, push B)
+      await expect(fetchVersions(3)).resolves.toHaveLength(2);
+
+      // Delete B
+      await expect(deleteSchema('service-b').then(r => r.expectNoGraphQLErrors())).resolves.toEqual(
+        expect.objectContaining({
+          schemaDelete: expect.objectContaining({
+            __typename: 'SchemaDeleteSuccess',
+          }),
+        }),
+      );
+
+      const versions = await fetchVersions(4);
+
+      // We should have 3 versions (push A, push B, delete B)
+      expect(versions).toHaveLength(3);
+      // Most recent version should be a delete action
+      expect(versions[0].log).toEqual({
+        __typename: 'DeletedSchemaLog',
+        deletedService: 'service-b',
+      });
+
+      // Delete A
+      await expect(deleteSchema('service-a').then(r => r.expectNoGraphQLErrors())).resolves.toEqual(
+        expect.objectContaining({
+          schemaDelete: expect.objectContaining({
+            __typename: 'SchemaDeleteSuccess',
+          }),
+        }),
+      );
+
+      // We should have 4 versions (push A, push B, delete B, delete A)
+      await expect(fetchVersions(5)).resolves.toHaveLength(4);
+
+      let latestValid = await fetchLatestValidSchema();
+      expect(latestValid.latestValidVersion).toBeDefined();
+      expect(latestValid.latestValidVersion?.log.__typename).toEqual('DeletedSchemaLog');
+      expect(latestValid.latestValidVersion?.schemas.total).toEqual(0);
+      expect(latestValid.latestValidVersion?.schemas.nodes).toHaveLength(0);
+
+      // Push C
+      await publishSchema({
+        author: 'Kamil',
+        commit: 'pushC',
+        sdl: serviceC,
+        service: 'service-c',
+        url: 'http://localhost:4003',
+      }).then(r => r.expectNoGraphQLErrors());
+
+      // We should have 4 versions (push A, push B, delete B, delete A, push C)
+      await expect(fetchVersions(6)).resolves.toHaveLength(5);
+
+      latestValid = await fetchLatestValidSchema();
+      expect(latestValid.latestValidVersion).toBeDefined();
+      expect(latestValid.latestValidVersion?.log.__typename).toEqual('PushedSchemaLog');
+      expect(latestValid.latestValidVersion?.schemas.total).toEqual(1);
+      expect(latestValid.latestValidVersion?.schemas.nodes).toHaveLength(1);
+      expect(latestValid.latestValidVersion?.schemas.nodes).toContainEqual(
+        expect.objectContaining({
+          commit: 'pushC',
+        }),
+      );
+    },
+  );
 });
