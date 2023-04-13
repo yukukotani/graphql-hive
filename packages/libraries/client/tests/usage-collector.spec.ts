@@ -55,6 +55,7 @@ const schema = buildSchema(/* GraphQL */ `
     type: ProjectType!
     buildUrl: String
     validationUrl: String
+    members: [Member!]!
   }
 
   enum ProjectType {
@@ -62,6 +63,18 @@ const schema = buildSchema(/* GraphQL */ `
     STITCHING
     SINGLE
     CUSTOM
+  }
+
+  union Member = Admin | User
+
+  type Admin {
+    id: ID!
+    name: String!
+  }
+
+  type User {
+    id: ID!
+    name: String!
   }
 `);
 
@@ -152,6 +165,34 @@ test('collect enum values from object fields', async () => {
   expect(info.fields).not.toContain(`ProjectType.STITCHING`);
   expect(info.fields).not.toContain(`ProjectType.SINGLE`);
   expect(info.fields).not.toContain(`ProjectType.CUSTOM`);
+});
+
+test('collect object fields (union type member)', async () => {
+  const collect = createCollector({
+    schema,
+    max: 1,
+  });
+  const info = collect(
+    parse(/* GraphQL */ `
+      query getProjects {
+        projects {
+          id
+          members {
+            ... on Admin {
+              id
+            }
+          }
+        }
+      }
+    `),
+    {},
+  ).value;
+
+  expect(info.fields).toContain(`Query.projects`);
+  expect(info.fields).toContain(`Project.id`);
+  expect(info.fields).toContain(`Admin.id`);
+  expect(info.fields).not.toContain(`Member`);
+  expect(info.fields).not.toContain(`Member.id`);
 });
 
 test('collect enum values from arguments', async () => {
