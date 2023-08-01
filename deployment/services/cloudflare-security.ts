@@ -55,7 +55,7 @@ export function deployCloudFlareSecurityTransform(options: {
   worker-src 'self' blob:;
   style-src 'self' 'unsafe-inline' ${crispHost} fonts.googleapis.com rsms.me ${monacoCdnDynamicBasePath} ${monacoCdnStaticBasePath};
   script-src 'self' 'unsafe-eval' 'unsafe-inline' {DYNAMIC_HOST_PLACEHOLDER} ${monacoCdnDynamicBasePath} ${monacoCdnStaticBasePath} ${cspHosts};
-  connect-src 'self' {DYNAMIC_HOST_PLACEHOLDER} ${cspHosts}; 
+  connect-src * 'self'; 
   media-src ${crispHost};
   style-src-elem 'self' 'unsafe-inline' ${monacoCdnDynamicBasePath} ${monacoCdnStaticBasePath} fonts.googleapis.com rsms.me ${crispHost};
   font-src 'self' fonts.gstatic.com rsms.me ${monacoCdnDynamicBasePath} ${monacoCdnStaticBasePath} ${crispHost};
