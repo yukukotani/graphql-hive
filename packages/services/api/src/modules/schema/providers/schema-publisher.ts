@@ -300,6 +300,22 @@ export class SchemaPublisher {
         throw new HiveError(`${project.type} project (${modelVersion}) not supported`);
     }
 
+    const githubRepository = input.github?.repository ?? null;
+
+    if (githubRepository != null && !isGitHubOwnerRepositoryNameValid(githubRepository)) {
+      return {
+        __typename: 'SchemaCheckError',
+        valid: false,
+        changes: [],
+        warnings: [],
+        errors: [
+          {
+            message: 'Invalid github repository name provided.',
+          },
+        ],
+      } as const;
+    }
+
     let schemaCheck: null | SchemaCheck = null;
 
     const retention = await this.rateLimit.getRetention({ targetId: target.id });
@@ -331,6 +347,7 @@ export class SchemaPublisher {
         isManuallyApproved: false,
         manualApprovalUserId: null,
         githubCheckRunId: null,
+        githubRepository,
         expiresAt,
       });
     }
@@ -389,6 +406,7 @@ export class SchemaPublisher {
         isManuallyApproved: false,
         manualApprovalUserId: null,
         githubCheckRunId: null,
+        githubRepository,
         expiresAt,
       });
     }
@@ -410,6 +428,7 @@ export class SchemaPublisher {
           compositionErrors: null,
           errors: null,
           schemaCheckId: schemaCheck?.id ?? null,
+          githubRepository,
         });
       } else {
         result = await this.githubCheck({
@@ -428,6 +447,7 @@ export class SchemaPublisher {
           warnings: checkResult.state.schemaPolicy?.warnings ?? [],
           errors: checkResult.state.schemaPolicy?.errors?.map(formatPolicyError) ?? [],
           schemaCheckId: schemaCheck?.id ?? null,
+          githubRepository,
         });
       }
 
@@ -1118,6 +1138,7 @@ export class SchemaPublisher {
     errors,
     warnings,
     schemaCheckId,
+    ...args
   }: {
     project: Project;
     target: Target;
@@ -1135,14 +1156,16 @@ export class SchemaPublisher {
       message: string;
     }> | null;
     schemaCheckId: string | null;
+    githubRepository: string | null;
   }) {
-    if (!project.gitRepository) {
+    const gitRepository = project.gitRepository ?? args.githubRepository;
+    if (!gitRepository) {
       return {
         __typename: 'GitHubSchemaCheckError' as const,
         message: 'Git repository is not configured for this project',
       };
     }
-    const [repositoryOwner, repositoryName] = project.gitRepository.split('/');
+    const [repositoryOwner, repositoryName] = gitRepository.split('/');
 
     try {
       let title: string;
@@ -1527,3 +1550,12 @@ function tryPrettifySDL(sdl: string): string {
 }
 
 const millisecondsPerDay = 60 * 60 * 24 * 1000;
+
+function isGitHubOwnerRepositoryNameValid(repository: string) {
+  const [owner, name] = repository.split('/');
+  return owner && isAlphaNumeric(owner) && name && isAlphaNumeric(name);
+}
+
+function isAlphaNumeric(str: string) {
+  return /^[a-z0-9]+$/i.test(str);
+}
