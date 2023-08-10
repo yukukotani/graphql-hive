@@ -224,6 +224,17 @@ export default gql`
     | GitHubSchemaPublishSuccess
     | GitHubSchemaPublishError
 
+  input SchemaPublishGitHubInput {
+    """
+    The repository name.
+    """
+    repository: String!
+    """
+    The commit sha.
+    """
+    commit: String!
+  }
+
   input SchemaPublishInput {
     service: ID
     url: String
@@ -240,7 +251,11 @@ export default gql`
     """
     Talk to GitHub Application and create a check-run
     """
-    github: Boolean
+    github: Boolean @deprecated(reason: "Use SchemaPublishInput.gitHub instead.")
+    """
+    Link GitHub version to a GitHub commit on a repository.
+    """
+    gitHub: SchemaPublishGitHubInput
   }
 
   union SchemaCheckPayload =
