@@ -3503,6 +3503,7 @@ export async function createStorage(connection: string, maximumPoolSize: number)
           , "manual_approval_user_id"
           , "github_check_run_id"
           , "github_repository"
+          , "github_sha"
           , "expires_at"
         )
         VALUES (
@@ -3523,6 +3524,7 @@ export async function createStorage(connection: string, maximumPoolSize: number)
           , ${args.manualApprovalUserId}
           , ${args.githubCheckRunId}
           , ${args.githubRepository}
+          , ${args.githubSha}
           , ${args.expiresAt?.toISOString() ?? null}
         )
         RETURNING

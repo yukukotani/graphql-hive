@@ -374,6 +374,7 @@ export class SchemaPublisher {
         manualApprovalUserId: null,
         githubCheckRunId: null,
         githubRepository,
+        githubSha: input.github?.commit ?? null,
         expiresAt,
       });
     }
@@ -433,6 +434,7 @@ export class SchemaPublisher {
         manualApprovalUserId: null,
         githubCheckRunId: null,
         githubRepository,
+        githubSha: input.github?.commit ?? null,
         expiresAt,
       });
     }
