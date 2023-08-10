@@ -9,6 +9,7 @@ import type { Span } from '@sentry/types';
 import * as Types from '../../../__generated__/types';
 import { Organization, Project, ProjectType, Schema, Target } from '../../../shared/entities';
 import { HiveError } from '../../../shared/errors';
+import { isGitHubRepositoryString } from '../../../shared/is-github-repository-string';
 import { bolderize } from '../../../shared/markdown';
 import { sentry } from '../../../shared/sentry';
 import { AlertsManager } from '../../alerts/providers/alerts-manager';
@@ -215,7 +216,7 @@ export class SchemaPublisher {
 
     if (input.github) {
       if (input.github.repository) {
-        if (!isGitHubOwnerRepositoryNameValid(input.github.repository)) {
+        if (!isGitHubRepositoryString(input.github.repository)) {
           return {
             __typename: 'GitHubSchemaCheckError' as const,
             message: 'Invalid github repository name provided.',
@@ -858,7 +859,7 @@ export class SchemaPublisher {
     } = null;
 
     if (input.gitHub != null) {
-      if (!isGitHubOwnerRepositoryNameValid(input.gitHub.repository)) {
+      if (!isGitHubRepositoryString(input.gitHub.repository)) {
         return {
           __typename: 'GitHubSchemaPublishError' as const,
           message: 'Invalid github repository name provided.',
@@ -1630,12 +1631,3 @@ function tryPrettifySDL(sdl: string): string {
 }
 
 const millisecondsPerDay = 60 * 60 * 24 * 1000;
-
-function isGitHubOwnerRepositoryNameValid(repository: string): repository is `${string}/${string}` {
-  const [owner, name] = repository.split('/');
-  return !!owner && isAlphaNumeric(owner) && !!name && isAlphaNumeric(name);
-}
-
-function isAlphaNumeric(str: string) {
-  return /^[a-z0-9]+$/i.test(str);
-}
