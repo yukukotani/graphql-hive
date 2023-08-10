@@ -76,6 +76,10 @@ export interface SchemaVersion {
   compositeSchemaSDL: null | string;
   supergraphSDL: null | string;
   schemaCompositionErrors: Array<SchemaCompositionError> | null;
+  github: null | {
+    repository: string;
+    sha: string;
+  };
 }
 
 export interface SchemaObject {

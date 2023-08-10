@@ -17,34 +17,13 @@ import {
 } from '@/components/ui/card';
 import { Subtitle, Title } from '@/components/ui/page';
 import { QueryError } from '@/components/ui/query-error';
-import { DocsLink, Input, Link, MetaTitle, Select, Tag } from '@/components/v2';
+import { DocsLink, Input, Link, MetaTitle, Tag } from '@/components/v2';
 import { DeleteProjectModal } from '@/components/v2/modals';
 import { graphql, useFragment } from '@/gql';
 import { ProjectType } from '@/graphql';
 import { canAccessProject, ProjectAccessScope, useProjectAccess } from '@/lib/access/project';
-import { useNotifications, useRouteSelector, useToggle } from '@/lib/hooks';
+import { useRouteSelector, useToggle } from '@/lib/hooks';
 import { withSessionProtection } from '@/lib/supertokens/guard';
-
-const ProjectSettingsPage_UpdateProjectGitRepositoryMutation = graphql(`
-  mutation ProjectSettingsPage_UpdateProjectGitRepository(
-    $input: UpdateProjectGitRepositoryInput!
-  ) {
-    updateProjectGitRepository(input: $input) {
-      ok {
-        selector {
-          organization
-          project
-        }
-        updatedProject {
-          ...ProjectFields
-        }
-      }
-      error {
-        message
-      }
-    }
-  }
-`);
 
 const GithubIntegration_GithubIntegrationDetailsQuery = graphql(`
   query getGitHubIntegrationDetails($selector: OrganizationSelectorInput!) {
@@ -60,7 +39,7 @@ const GithubIntegration_GithubIntegrationDetailsQuery = graphql(`
   }
 `);
 
-function GitHubIntegration(props: { gitRepository: string | null }): ReactElement | null {
+function GitHubIntegration(_props: {}): ReactElement | null {
   const router = useRouteSelector();
   const [integrationQuery] = useQuery({
     query: GithubIntegration_GithubIntegrationDetailsQuery,
@@ -70,35 +49,6 @@ function GitHubIntegration(props: { gitRepository: string | null }): ReactElemen
       },
     },
   });
-  const gitRepository = props.gitRepository ?? '';
-
-  const notify = useNotifications();
-
-  const [mutation, mutate] = useMutation(ProjectSettingsPage_UpdateProjectGitRepositoryMutation);
-  const { handleSubmit, values, handleChange, handleBlur, isSubmitting, errors, touched } =
-    useFormik({
-      enableReinitialize: true,
-      initialValues: {
-        gitRepository,
-      },
-      validationSchema: Yup.object().shape({
-        gitRepository: Yup.string(),
-      }),
-      onSubmit: values =>
-        mutate({
-          input: {
-            organization: router.organizationId,
-            project: router.projectId,
-            gitRepository: values.gitRepository === '' ? null : values.gitRepository,
-          },
-        }).then(result => {
-          if (result.data?.updateProjectGitRepository.ok) {
-            notify('Updated Git repository', 'success');
-          } else {
-            notify('Failed to update Git repository', 'error');
-          }
-        }),
-    });
 
   if (integrationQuery.fetching) {
     return null;
@@ -107,54 +57,36 @@ function GitHubIntegration(props: { gitRepository: string | null }): ReactElemen
   const githubIntegration = integrationQuery.data?.organization?.organization.gitHubIntegration;
 
   return (
-    <form onSubmit={handleSubmit}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Git Repository</CardTitle>
-          <CardDescription>
-            Associate your project with a Git repository to enable commit linking and to allow CI
-            integration.
-            <br />
-            <DocsLink
-              className="text-muted-foreground text-sm"
-              href="/management/projects#github-repository"
-            >
-              Learn more about GitHub integration
-            </DocsLink>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {githubIntegration ? (
-            <>
-              <Select
-                name="gitRepository"
-                placeholder="None"
-                className="w-96"
-                options={githubIntegration.repositories.map(repo => ({
-                  name: repo.nameWithOwner,
-                  value: repo.nameWithOwner,
-                }))}
-                value={values.gitRepository ?? undefined}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                isInvalid={!!(touched.gitRepository && errors.gitRepository)}
-              />
-              {touched.gitRepository && (errors.gitRepository || mutation.error) && (
-                <div className="mt-2 text-red-500">
-                  {errors.gitRepository ??
-                    mutation.error?.graphQLErrors[0]?.message ??
-                    mutation.error?.message}
-                </div>
-              )}
-              {mutation.data?.updateProjectGitRepository.error && (
-                <div className="mt-2 text-red-500">
-                  {mutation.data.updateProjectGitRepository.error.message}
-                </div>
-              )}
-            </>
-          ) : (
+    <Card>
+      <CardHeader>
+        <CardTitle>Git Repository</CardTitle>
+        <CardDescription>
+          Associate your project with a Git repository to enable commit linking and to allow CI
+          integration.
+          <br />
+          <DocsLink
+            className="text-muted-foreground text-sm"
+            href="/management/projects#github-repository"
+          >
+            Learn more about GitHub integration
+          </DocsLink>
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {githubIntegration ? (
+          <>
+            <p>
+              This project can access and update check-runs of the following GitHub repositories.
+            </p>
+            <ul>
+              $
+              {githubIntegration.repositories.map(repository => (
+                <li key={repository.nameWithOwner}>{repository.nameWithOwner}</li>
+              ))}
+            </ul>
+
             <Tag className="!p-4">
-              The organization is not connected to our GitHub Application.
+              The list of repositories can be adjusted in the organization settings.
               <Link
                 variant="primary"
                 href={{
@@ -166,23 +98,27 @@ function GitHubIntegration(props: { gitRepository: string | null }): ReactElemen
               >
                 Visit settings
               </Link>
-              to configure it.
             </Tag>
-          )}
-        </CardContent>
-        {githubIntegration ? (
-          <CardFooter>
-            <Button
-              type="submit"
-              className="px-10"
-              disabled={isSubmitting || gitRepository === values.gitRepository}
+          </>
+        ) : (
+          <Tag className="!p-4">
+            The organization is not connected to our GitHub Application.
+            <Link
+              variant="primary"
+              href={{
+                pathname: '/[organizationId]/view/settings',
+                query: {
+                  organizationId: router.organizationId,
+                },
+              }}
             >
-              Save
-            </Button>
-          </CardFooter>
-        ) : null}
-      </Card>
-    </form>
+              Visit settings
+            </Link>
+            to configure it.
+          </Tag>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -219,7 +155,6 @@ const ProjectSettingsPage_OrganizationFragment = graphql(`
 const ProjectSettingsPage_ProjectFragment = graphql(`
   fragment ProjectSettingsPage_ProjectFragment on Project {
     name
-    gitRepository
     type
     ...ModelMigrationSettings_ProjectFragment
     ...ExternalCompositionSettings_ProjectFragment
@@ -369,9 +304,7 @@ function ProjectSettingsContent() {
                 </Card>
               </form>
 
-              {query.data?.isGitHubIntegrationFeatureEnabled ? (
-                <GitHubIntegration gitRepository={project.gitRepository ?? null} />
-              ) : null}
+              {query.data?.isGitHubIntegrationFeatureEnabled ? <GitHubIntegration /> : null}
 
               {project.type === ProjectType.Federation ? (
                 <ExternalCompositionSettings project={project} organization={organization} />

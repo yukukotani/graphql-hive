@@ -490,6 +490,15 @@ export default gql`
     """
     explorer(usage: SchemaExplorerUsageInput): SchemaExplorer!
     errors: SchemaErrorConnection!
+    """
+    GitHub metadata associated with the schema version.
+    """
+    githubMetadata: SchemaVersionGithubMetadata
+  }
+
+  type SchemaVersionGithubMetadata {
+    repository: String!
+    commit: String!
   }
 
   type SchemaVersionConnection {

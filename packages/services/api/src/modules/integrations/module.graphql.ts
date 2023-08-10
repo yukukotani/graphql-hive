@@ -44,8 +44,4 @@ export default gql`
   type GitHubRepository {
     nameWithOwner: String!
   }
-
-  extend type Project {
-    gitRepository: String
-  }
 `;
