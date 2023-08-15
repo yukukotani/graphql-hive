@@ -45,10 +45,12 @@ We have a script to feed your local instance of Hive.
 5. This should report a dummy schema and some dummy usage data to your local instance of Hive,
    allowing you to test features e2e
 
-> Note: You can set `STAGING=1` in order to target staging env and seed a target there. Same for
+> **Note**:
+> You can set `STAGING=1` in order to target staging env and seed a target there. Same for
 > development env, you can use `DEV=1`
 
-> Note: You can set `FEDERATION=1` in order to publish multiple subgraphs.
+> **Note**:
+> You can set `FEDERATION=1` in order to publish multiple subgraphs.
 
 > To send more operations and test heavy load on Hive instance, you can also set `OPERATIONS`
 > (amount of operations in each interval round, default is `1`) and `INTERVAL` (frequency of sending
@@ -140,7 +142,8 @@ password
 
 ### Legacy Auth0 Integration
 
-**Note:** If you are not working at The Guild, you can safely ignore this section.
+> **Warning**:
+> You can safely ignore this section if you are not working at The Guild.
 
 Since we migrated from Auth0 to SuperTokens there is a compatibility layer for importing/migrating
 accounts from Auth0 to SuperTokens.
@@ -175,9 +178,9 @@ to test some stuff or fix the Auth0 -> SuperTokens migration flow you have to se
            return callback(null, user, context);
          }
          ```
-2. Update the `.env` secrets used by your local hive instance that are found when viewing your new
+2. Update the `.env` secrets used by your local hive instance that is found when viewing your new
    application on Auth0:
-   - `AUTH_LEGACY_AUTH0` (set this to `1` for enabling the migration.)
+   - `AUTH_LEGACY_AUTH0` (set this to `1` to enable migration.)
    - `AUTH_LEGACY_AUTH0_CLIENT_ID` (e.g. `rGSrExtM9sfilpF8kbMULkMNYI2SgXro`)
    - `AUTH_LEGACY_AUTH0_CLIENT_SECRET` (e.g.
      `gJjNQJsCaOC0nCKTgqWv2wvrh1XXXb-iqzVdn8pi2nSPq2TxxxJ9FIUYbNjheXxx`)
