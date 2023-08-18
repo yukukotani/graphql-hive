@@ -109,35 +109,45 @@ const renderFeatures = ({ title, description }) => (
 
 function Hero() {
   return (
-    <div className="w-full relative">
-      <div className="my-6 py-20 px-2 sm:py-24 lg:py-32 relative">
-        <h1 className="mx-auto max-w-screen-lg bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 bg-clip-text text-center text-5xl font-extrabold text-transparent dark:from-yellow-400 dark:to-orange-500 sm:text-5xl lg:text-6xl">
-          Full Control Over GraphQL
-        </h1>
-        <p className="mx-auto mt-6 max-w-screen-sm text-center text-lg text-gray-700 dark:text-gray-200">
-          Prevent breaking changes, monitor performance of your GraphQL API, and manage your API
-          gateway
-        </p>
-        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <a
-            href="https://app.graphql-hive.com"
-            className={clsx(
-              'inline-block rounded-lg px-6 py-3 font-medium text-white shadow-sm',
-              'bg-yellow-500 hover:bg-yellow-500/75',
-              'dark:bg-yellow-600 dark:hover:bg-yellow-500/100',
-            )}
-          >
-            Start for free
-          </a>
-          <Link href="/docs" className={classes.link}>
-            Documentation
-          </Link>
-          <a
-            className={clsx(classes.link, 'flex flex-row items-center gap-2')}
-            href="https://github.com/kamilkisiela/graphql-hive"
-          >
-            <FiGithub /> Star on GitHub
-          </a>
+    <div className="w-full h-full my-6 px-2">
+      <div className="container">
+        <div className="w-full flex flex-row justify-between gap-x-12">
+          <div className="max-w-screen-sm py-20 sm:py-24 lg:py-32">
+            <h1 className="text-center lg:text-left tracking-tight leading-none bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 bg-clip-text text-5xl font-extrabold text-transparent dark:from-yellow-400 dark:to-orange-500 sm:text-5xl lg:text-6xl">
+              Full Control Over GraphQL
+            </h1>
+            <p className="text-center lg:text-left mt-6 text-lg text-gray-700 dark:text-gray-200">
+              Prevent breaking changes, monitor performance of your GraphQL API, and manage your API
+              gateway
+            </p>
+            <div className="mt-10 flex flex-col items-center justify-center lg:justify-start gap-4 sm:flex-row">
+              <a
+                href="https://app.graphql-hive.com"
+                className={clsx(
+                  'inline-block rounded-lg px-6 py-3 font-medium text-white shadow-sm',
+                  'bg-yellow-500 hover:bg-yellow-500/75',
+                  'dark:bg-yellow-600 dark:hover:bg-yellow-500/100',
+                )}
+              >
+                Start for free
+              </a>
+              <Link href="/docs" className={classes.link}>
+                Documentation
+              </Link>
+              <a
+                className={clsx(classes.link, 'flex flex-row items-center gap-2')}
+                href="https://github.com/kamilkisiela/graphql-hive"
+              >
+                <FiGithub /> Star on GitHub
+              </a>
+            </div>
+          </div>
+          <div
+            className="shrink-0 w-1/3 bg-no-repeat bg-center bg-contain hidden lg:block"
+            style={{
+              backgroundImage: "url('/bee-laptop.png')",
+            }}
+          />
         </div>
       </div>
     </div>
@@ -166,10 +176,10 @@ function Feature(props: {
         <div
           className={clsx(
             'flex flex-col items-start gap-24 md:gap-12 lg:gap-24',
-            flipped ? 'md:flex-row-reverse' : 'md:flex-row',
+            flipped ? 'lg:flex-row-reverse' : 'lg:flex-row',
           )}
         >
-          <div className="flex w-full shrink-0 flex-col gap-4 md:w-2/5 lg:w-1/3">
+          <div className="flex w-full shrink-0 flex-col gap-4 lg:w-1/3">
             <h2
               className="bg-clip-text text-5xl font-semibold leading-normal text-transparent dark:text-transparent"
               style={{ backgroundImage: `linear-gradient(-70deg, ${end}, ${start})` }}
@@ -195,7 +205,7 @@ function Feature(props: {
             ) : null}
           </div>
           <div
-            className="relative flex grow flex-col items-center justify-center overflow-hidden rounded-3xl p-8"
+            className="relative flex grow w-full lg:w-auto flex-col items-center justify-center overflow-hidden rounded-3xl p-8"
             style={{ backgroundImage: `linear-gradient(70deg, ${start}, ${end})` }}
           >
             <Image {...image} className="rounded-2xl" alt={title} />
