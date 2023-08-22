@@ -1,4 +1,6 @@
 use super::graphql::OperationProcessor;
+use futures::channel::mpsc;
+use futures::stream::StreamExt;
 use graphql_parser::schema::{parse_schema, Document};
 use serde::Serialize;
 use std::{
@@ -6,6 +8,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+use tower::BoxError;
 
 static COMMIT: Option<&'static str> = option_env!("GITHUB_SHA");
 
@@ -65,12 +68,12 @@ pub struct ExecutionReport {
 }
 
 #[derive(Debug, Clone)]
-pub struct State {
+pub struct UsageReportCollector {
     buffer: VecDeque<ExecutionReport>,
     schema: Document<'static, String>,
 }
 
-impl State {
+impl UsageReportCollector {
     fn new(schema: Document<'static, String>) -> Self {
         Self {
             buffer: VecDeque::new(),
@@ -89,14 +92,40 @@ impl State {
 }
 
 #[derive(Clone)]
-pub struct UsageAgent {
+pub struct Sender {
+    channel: Arc<Mutex<mpsc::Sender<ExecutionReport>>>,
+}
+
+impl Drop for Sender {
+    fn drop(&mut self) {
+        tracing::debug!("Dropping sender");
+    }
+}
+
+impl Sender {
+    pub fn send(&self, report: ExecutionReport) {
+        if let Err(err) = self
+            .channel
+            .to_owned()
+            .lock()
+            .expect("Unable to lock Channel in Sender")
+            .try_send(report)
+        {
+            tracing::warn!("Dropping report (phase: SENDER): {}", err);
+        } else {
+            tracing::debug!("Added report (phase: SENDER)")
+        }
+    }
+}
+
+pub struct UsageExporter {
     token: String,
     endpoint: String,
     buffer_size: usize,
-    accept_invalid_certs: bool,
+    client: reqwest::Client,
     /// We need the Arc wrapper to be able to clone the agent while preserving multiple mutable reference to processor
     /// We also need the Mutex wrapper bc we cannot borrow data in an `Arc` as mutable
-    pub state: Arc<Mutex<State>>,
+    pub collector: Arc<Mutex<UsageReportCollector>>,
     processor: Arc<Mutex<OperationProcessor>>,
 }
 
@@ -110,30 +139,34 @@ fn non_empty_string(value: Option<String>) -> Option<String> {
     }
 }
 
-impl UsageAgent {
+impl UsageExporter {
     pub fn new(
         schema: String,
         token: String,
         endpoint: String,
         buffer_size: usize,
         accept_invalid_certs: bool,
-    ) -> Self {
-        let schema = parse_schema::<String>(&schema)
-            .expect("Failed to parse schema")
-            .into_static();
-        let state = Arc::new(Mutex::new(State::new(schema)));
+    ) -> Result<Self, BoxError> {
+        let schema = parse_schema::<String>(&schema)?.into_static();
+        let collector = Arc::new(Mutex::new(UsageReportCollector::new(schema)));
         let processor = Arc::new(Mutex::new(OperationProcessor::new()));
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(accept_invalid_certs)
+            .connect_timeout(Duration::from_secs(2000))
+            .timeout(Duration::from_secs(15_000))
+            .build()
+            .map_err(BoxError::from)?;
 
         let agent = Self {
-            state,
+            collector,
             processor,
             endpoint,
             token,
+            client,
             buffer_size,
-            accept_invalid_certs,
         };
 
-        let mut agent_for_interval = agent.clone();
+        // let mut agent_for_interval = agent.clone();
 
         // TODO: make this working
         // tokio::task::spawn(async move {
@@ -145,15 +178,62 @@ impl UsageAgent {
         //         // tracing::info!("Flushed because of shutdown");
         //     }
 
-        std::thread::spawn(move || loop {
-            std::thread::sleep(Duration::from_secs(5));
-            agent_for_interval.flush();
-        });
+        // std::thread::spawn(move || loop {
+        //     std::thread::sleep(Duration::from_secs(5));
+        //     agent_for_interval.flush();
+        // });
 
-        agent
+        Ok(agent)
     }
 
-    fn produce_report(&mut self, reports: Vec<ExecutionReport>) -> Report {
+    pub fn start(self) -> Sender {
+        let (tx, mut rx) = mpsc::channel::<ExecutionReport>(self.buffer_size);
+        tokio::spawn(async move {
+            let timeout = tokio::time::interval(Duration::from_secs(5));
+
+            tokio::pin!(timeout);
+
+            loop {
+                tokio::select! {
+                    execution_report = rx.next() => {
+                        if let Some(r) = execution_report {
+                            match self.add_report(r).await {
+                                Ok(_) => {
+                                    return;
+                                },
+                                Err(e) => {
+                                    tracing::warn!("Dropping report (phase: RECEIVER): {}", e);
+                                }
+                            }
+                        } else {
+                            tracing::debug!("terminating usage exporter");
+                            break;
+                        }
+                       },
+
+                    _ = timeout.tick() => {
+                        match self.flush().await {
+                            Ok(_) => {
+                                return;
+                            },
+                            Err(e) => {
+                                tracing::warn!("Failed to submit usage report (phase: RECEIVER): {}", e);
+                            }
+                        }
+                    }
+                };
+            }
+
+            if let Err(e) = self.flush().await {
+                tracing::error!("failed to submit usage report: {}", e)
+            }
+        });
+        Sender {
+            channel: Arc::new(Mutex::new(tx)),
+        }
+    }
+
+    fn produce_report(&self, reports: Vec<ExecutionReport>) -> Report {
         let mut report = Report {
             size: 0,
             map: HashMap::new(),
@@ -165,13 +245,13 @@ impl UsageAgent {
             let operation = self
                 .processor
                 .lock()
-                .expect("Unable to acquire the OperationProcessor in produce_report")
+                .expect("Unable to acquire Processor in produce_report")
                 .process(
                     &op.operation_body,
                     &self
-                        .state
+                        .collector
                         .lock()
-                        .expect("Unable to acquire State in produce_report")
+                        .expect("Unable to acquire Collector in produce_report")
                         .schema,
                 );
             match operation {
@@ -228,84 +308,92 @@ impl UsageAgent {
         report
     }
 
-    pub fn add_report(&mut self, execution_report: ExecutionReport) {
+    async fn add_report(&self, execution_report: ExecutionReport) -> Result<(), BoxError> {
+        tracing::debug!("Added report (phase: ADD_REPORT)");
         let size = self
-            .state
+            .collector
             .lock()
-            .expect("Unable to acquire State in add_report")
+            .expect("Unable to acquire Collector in add_report")
             .push(execution_report);
-        self.flush_if_full(size);
+        tracing::debug!("Size of collector: {}", size);
+        self.flush_if_full(size).await?;
+        Ok(())
     }
 
-    pub fn send_report(&self, report: Report) -> Result<(), String> {
-        const DELAY_BETWEEN_TRIES: Duration = Duration::from_millis(500);
-        const MAX_TRIES: u8 = 3;
+    async fn send_report(&self, report: Report) -> Result<(), String> {
+        // const DELAY_BETWEEN_TRIES: Duration = Duration::from_millis(500);
+        // const MAX_TRIES: u8 = 3;
+        // let mut error_message = "Unexpected error".to_string();
 
-        let client = reqwest::blocking::Client::builder()
-            .danger_accept_invalid_certs(self.accept_invalid_certs)
-            .build()
-            .map_err(|err| err.to_string())?;
-        let mut error_message = "Unexpected error".to_string();
+        // for _ in 0..MAX_TRIES {
+        //     let resp = self
+        //         .client
+        //         .post(self.endpoint.clone())
+        //         .header(
+        //             reqwest::header::AUTHORIZATION,
+        //             format!("Bearer {}", self.token.clone()),
+        //         )
+        //         .header(
+        //             reqwest::header::USER_AGENT,
+        //             format!("hive-apollo-router/{}", COMMIT.unwrap_or_else(|| "local")),
+        //         )
+        //         .json(&report)
+        //         .send()
+        //         .map_err(|e| e.to_string())?;
 
-        for _ in 0..MAX_TRIES {
-            let resp = client
-                .post(self.endpoint.clone())
-                .header(
-                    reqwest::header::AUTHORIZATION,
-                    format!("Bearer {}", self.token.clone()),
-                )
-                .header(
-                    reqwest::header::USER_AGENT,
-                    format!("hive-apollo-router/{}", COMMIT.unwrap_or_else(|| "local")),
-                )
-                .json(&report)
-                .send()
-                .map_err(|e| e.to_string())?;
+        //     match resp.status() {
+        //         reqwest::StatusCode::OK => {
+        //             return Ok(());
+        //         }
+        //         reqwest::StatusCode::BAD_REQUEST => {
+        //             return Err("Token is missing".to_string());
+        //         }
+        //         reqwest::StatusCode::FORBIDDEN => {
+        //             return Err("No access".to_string());
+        //         }
+        //         _ => {
+        //             error_message = format!(
+        //                 "Could not send usage report: ({}) {}",
+        //                 resp.status().as_str(),
+        //                 resp.text().unwrap_or_default()
+        //             );
+        //         }
+        //     }
+        //     std::thread::sleep(DELAY_BETWEEN_TRIES);
+        // }
 
-            match resp.status() {
-                reqwest::StatusCode::OK => {
-                    return Ok(());
-                }
-                reqwest::StatusCode::BAD_REQUEST => {
-                    return Err("Token is missing".to_string());
-                }
-                reqwest::StatusCode::FORBIDDEN => {
-                    return Err("No access".to_string());
-                }
-                _ => {
-                    error_message = format!(
-                        "Could not send usage report: ({}) {}",
-                        resp.status().as_str(),
-                        resp.text().unwrap_or_default()
-                    );
-                }
-            }
-            std::thread::sleep(DELAY_BETWEEN_TRIES);
-        }
+        // Err(error_message)
 
-        Err(error_message)
+        Ok(())
     }
 
-    pub fn flush_if_full(&mut self, size: usize) {
+    async fn flush_if_full(&self, size: usize) -> Result<(), BoxError> {
+        tracing::debug!("Flushing if full {} >= {}", size, self.buffer_size);
         if size >= self.buffer_size {
-            self.flush();
+            self.flush().await?
         }
+
+        Ok(())
     }
 
-    pub fn flush(&mut self) {
+    async fn flush(&self) -> Result<(), BoxError> {
         let execution_reports = self
-            .state
+            .collector
             .lock()
-            .expect("Unable to acquire State in flush")
+            .expect("Unable to acquire Collector in flush")
             .drain();
         let size = execution_reports.len();
 
         if size > 0 {
             let report = self.produce_report(execution_reports);
-            match self.send_report(report) {
-                Ok(_) => tracing::debug!("Reported {} operations", size),
-                Err(e) => tracing::error!("{}", e),
+            match self.send_report(report).await {
+                Ok(_) => {
+                    tracing::debug!("Reported {} operations", size);
+                }
+                Err(e) => return Err(BoxError::from(e)),
             }
         }
+
+        Ok(())
     }
 }
