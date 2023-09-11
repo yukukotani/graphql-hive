@@ -16,6 +16,7 @@
     "@graphql-tools/stitching-directives": "3.0.0",
     "@hive/service-common": "workspace:*",
     "@sentry/node": "7.59.3",
+    "@theguild/federation-composition": "0.0.0-alpha-20230917014717-2b2326b",
     "@trpc/server": "10.31.0",
     "@types/async-retry": "1.4.5",
     "@types/ioredis-mock": "8.2.2",

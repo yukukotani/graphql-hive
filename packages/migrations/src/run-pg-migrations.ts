@@ -51,6 +51,7 @@ import migration_2023_06_06T11_26_04_schema_checks from './actions/2023.06.06T11
 import migration_2023_07_10T11_26_04_schema_checks_manual_approval from './actions/2023.07.10T11.26.04.schema-checks-manual-approval';
 import migration_2023_08_01T11_44_36_schema_checks_expires_at from './actions/2023.08.01T11.44.36.schema-checks-expires-at';
 import migration_2023_09_01T09_54_00_zendesk_support from './actions/2023.09.01T09.54.00.zendesk-support';
+import migration_2023_09_07T14_14_14_native_fed_v2 from './actions/2023.09.07T14.14.14.native-fed-v2';
 import { runMigrations } from './pg-migrator';
 
 export const runPGMigrations = (args: { slonik: DatabasePool; runTo?: string }) =>
@@ -110,5 +111,6 @@ export const runPGMigrations = (args: { slonik: DatabasePool; runTo?: string }) 
       migration_2023_07_27T11_44_36_graphql_endpoint,
       migration_2023_08_01T11_44_36_schema_checks_expires_at,
       migration_2023_09_01T09_54_00_zendesk_support,
+      migration_2023_09_07T14_14_14_native_fed_v2,
     ],
   });
