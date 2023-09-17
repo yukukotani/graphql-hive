@@ -22,7 +22,7 @@
     "copyfiles": "2.4.1",
     "dotenv": "16.3.1",
     "ioredis": "5.3.2",
-    "mjml": "4.14.0",
+    "mjml": "4.14.1",
     "nodemailer": "6.9.5",
     "p-timeout": "6.1.2",
     "pino-pretty": "10.1.0",
