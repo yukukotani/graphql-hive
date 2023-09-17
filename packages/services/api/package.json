@@ -42,7 +42,7 @@
     "date-fns": "2.30.0",
     "fast-json-stable-stringify": "2.1.0",
     "got": "12.6.1",
-    "graphql-modules": "2.1.2",
+    "graphql-modules": "2.2.0",
     "graphql-parse-resolve-info": "4.13.0",
     "graphql-scalars": "1.22.2",
     "graphql-yoga": "4.0.3",
