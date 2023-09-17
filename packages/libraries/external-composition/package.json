@@ -62,7 +62,7 @@
     "@apollo/composition": "2.4.12",
     "esbuild": "0.17.19",
     "fastify": "3.29.5",
-    "graphql": "16.6.0"
+    "graphql": "16.8.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
