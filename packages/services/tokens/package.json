@@ -22,7 +22,7 @@
     "p-timeout": "6.1.2",
     "pino-pretty": "10.1.0",
     "reflect-metadata": "0.1.13",
-    "tiny-lru": "8.0.2",
+    "tiny-lru": "11.0.1",
     "tslib": "2.5.3",
     "zod": "3.21.4"
   },
