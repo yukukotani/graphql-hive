@@ -14,7 +14,7 @@
     "@pulumi/random": "4.13.2",
     "@types/js-yaml": "4.0.5",
     "@types/mime-types": "2.1.1",
-    "@types/node": "18.16.19",
+    "@types/node": "18.17.17",
     "js-yaml": "4.1.0",
     "pg-connection-string": "2.6.0",
     "typescript": "5.1.6"
