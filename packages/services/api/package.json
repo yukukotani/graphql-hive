@@ -30,7 +30,7 @@
     "@theguild/buddy": "0.1.0",
     "@trpc/client": "10.31.0",
     "@trpc/server": "10.31.0",
-    "@types/bcryptjs": "2.4.2",
+    "@types/bcryptjs": "2.4.4",
     "@types/ioredis-mock": "8.2.2",
     "@types/lodash": "4.14.195",
     "@types/ms": "0.7.31",
